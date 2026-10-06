@@ -13,84 +13,29 @@ jobs:
 
     steps:
 
-      # ==========================================
       # 1. Checkout source code
-      # ==========================================
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ==========================================
-      # 2. Tìm file Solution
-      # ==========================================
-      - name: Find solution
-        id: solution
+      # 2. Show repository structure
+      - name: Show repository files
         shell: pwsh
         run: |
-          Write-Host "Searching for .sln file..."
+          Write-Host "Repository structure:"
+          Get-ChildItem -Path . -Recurse -File |
+            Select-Object FullName
 
-          $solutions = Get-ChildItem `
-            -Path . `
-            -Filter *.sln `
-            -Recurse `
-            -File
-
-          if ($solutions.Count -eq 0) {
-            Write-Error "No .sln file found."
-            exit 1
-          }
-
-          Write-Host "Found solution(s):"
-
-          foreach ($solution in $solutions) {
-            Write-Host $solution.FullName
-          }
-
-          $selected = $solutions | Select-Object -First 1
-
-          Write-Host "Using solution:"
-          Write-Host $selected.FullName
-
-          $relativePath = $selected.FullName.Substring(
-            (Get-Location).Path.Length + 1
-          )
-
-          "path=$relativePath" >> $env:GITHUB_OUTPUT
-
-      # ==========================================
       # 3. Setup .NET
-      # ==========================================
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # ==========================================
-      # 4. Hiển thị thông tin .NET
-      # ==========================================
+      # 4. Show .NET information
       - name: .NET information
-        run: |
-          dotnet --info
+        run: dotnet --info
 
-      # ==========================================
-      # 5. Restore
-      # ==========================================
-      - name: Restore
-        run: |
-          dotnet restore "${{ steps.solution.outputs.path }}"
-
-      # ==========================================
-      # 6. Build Release
-      # ==========================================
-      - name: Build
-        run: |
-          dotnet build `
-            "${{ steps.solution.outputs.path }}" `
-            --configuration Release `
-            --no-restore
-
-      # ==========================================
-      # 7. Tìm WPF project
-      # ==========================================
+      # 5. Find WPF project
       - name: Find WPF project
         id: wpf
         shell: pwsh
@@ -103,13 +48,22 @@ jobs:
             -Recurse `
             -File
 
+          if ($projects.Count -eq 0) {
+            Write-Error "No .csproj file found."
+            exit 1
+          }
+
           foreach ($project in $projects) {
+
             Write-Host ""
-            Write-Host "Checking: $($project.FullName)"
+            Write-Host "Checking:"
+            Write-Host $project.FullName
 
             $content = Get-Content $project.FullName -Raw
 
             if ($content -match "UseWPF") {
+
+              Write-Host ""
               Write-Host "WPF project found:"
               Write-Host $project.FullName
 
@@ -118,6 +72,7 @@ jobs:
               )
 
               "path=$relativePath" >> $env:GITHUB_OUTPUT
+
               exit 0
             }
           }
@@ -125,9 +80,20 @@ jobs:
           Write-Error "No WPF project found."
           exit 1
 
-      # ==========================================
-      # 8. Publish WPF
-      # ==========================================
+      # 6. Restore
+      - name: Restore
+        run: |
+          dotnet restore "${{ steps.wpf.outputs.path }}"
+
+      # 7. Build
+      - name: Build Release
+        run: |
+          dotnet build `
+            "${{ steps.wpf.outputs.path }}" `
+            --configuration Release `
+            --no-restore
+
+      # 8. Publish
       - name: Publish WPF
         shell: pwsh
         run: |
@@ -138,22 +104,19 @@ jobs:
             --self-contained true `
             --output "${{ github.workspace }}\publish"
 
-      # ==========================================
-      # 9. Hiển thị file build
-      # ==========================================
+      # 9. Show published files
       - name: Show published files
         shell: pwsh
         run: |
           Write-Host "Published files:"
+
           Get-ChildItem `
             -Path "${{ github.workspace }}\publish" `
             -Recurse `
             -File |
             Select-Object FullName, Length
 
-      # ==========================================
-      # 10. Đóng gói ZIP
-      # ==========================================
+      # 10. Create ZIP
       - name: Create ZIP
         shell: pwsh
         run: |
@@ -162,9 +125,7 @@ jobs:
             -DestinationPath "${{ github.workspace }}\APPQLXD-Windows.zip" `
             -Force
 
-      # ==========================================
       # 11. Upload artifact
-      # ==========================================
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
