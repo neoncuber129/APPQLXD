@@ -1,0 +1,162 @@
+<Window x:Class="APPQLXD.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Quản lý xăng dầu"
+        Icon="Assets/app.ico"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        Height="900" Width="1440"
+        MinHeight="700" MinWidth="1200"
+        Background="{StaticResource AppBg}"
+        FontFamily="Segoe UI" FontSize="14">
+    <Window.Resources>
+        <Style x:Key="TopTab" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="#D5DDE8"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}" BorderThickness="0,0,0,3" BorderBrush="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#17324F"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#17324F"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#E7B15A"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Border Background="#0E1C2F">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="16,0,8,0" VerticalAlignment="Center">
+                    <TextBlock Text="XĂNG DẦU" Foreground="#E7B15A" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Text=" · " Foreground="#6B7C90" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding WarehouseScopeText}" Foreground="#D5DDE8" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Menu.Resources>
+                        <Style TargetType="MenuItem">
+                            <Setter Property="Foreground" Value="#1B2836"/>
+                            <Setter Property="Padding" Value="10,6"/>
+                        </Style>
+                    </Menu.Resources>
+                    <MenuItem Header="Tiện ích" Foreground="White" Padding="12,8">
+                        <MenuItem Header="Placeholder phiếu nhập" Command="{Binding ShowPlaceholdersPhieuNhapCommand}"/>
+                        <MenuItem Header="Placeholder phiếu xuất" Command="{Binding ShowPlaceholdersPhieuXuatCommand}"/>
+                        <MenuItem Header="Placeholder sổ TT máy/xe" Command="{Binding ShowPlaceholdersSoMayXeCommand}"/>
+                        <MenuItem Header="Placeholder sổ TT tàu" Command="{Binding ShowPlaceholdersSoTauCommand}"/>
+                        <MenuItem Header="Placeholder sổ NXT" Command="{Binding ShowPlaceholdersNxtCommand}"/>
+                        <MenuItem Header="Placeholder NXT tổng" Command="{Binding ShowPlaceholdersNxtTongCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Mở thư mục mẫu Word (kho_xd / kho_vt)" Command="{Binding OpenTemplateFolderCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Cài đặt" Foreground="White" Padding="12,8">
+                        <MenuItem Header="Chế độ kho" IsEnabled="False"/>
+                        <MenuItem Header="Kho XD" IsCheckable="True" IsChecked="{Binding IsXdScope, Mode=OneWay}" Command="{Binding UseXdScopeCommand}"/>
+                        <MenuItem Header="Kho PTKT-VTXD" IsCheckable="True" IsChecked="{Binding IsPtktScope, Mode=OneWay}" Command="{Binding UsePtktScopeCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Sao lưu" Foreground="White" Padding="12,8">
+                        <MenuItem Header="Toàn bộ dữ liệu" Command="{Binding BackupCommand}"/>
+                        <MenuItem Header="Danh mục" Command="{Binding BackupCatalogCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Khôi phục" Foreground="White" Padding="12,8">
+                        <MenuItem Header="Toàn bộ dữ liệu" Command="{Binding RestoreCommand}"/>
+                        <MenuItem Header="Danh mục" Command="{Binding RestoreCatalogCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Tạo danh mục mẫu từ Excel" Command="{Binding LoadSampleCatalogCommand}"/>
+                    </MenuItem>
+                    <MenuItem Header="Xoá" Foreground="#F3C7C7" Padding="12,8">
+                        <MenuItem Header="Xoá chứng từ, giữ danh mục" Command="{Binding ClearActivityCommand}"/>
+                        <MenuItem Header="Xoá toàn bộ" Command="{Binding ClearAllCommand}"/>
+                    </MenuItem>
+                </Menu>
+                <ui:SafeListBox ItemsSource="{Binding Tabs}"
+                         SelectedItem="{Binding SelectedTab}"
+                         PreviewMouseLeftButtonDown="TabsPreviewClick"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ItemContainerStyle="{StaticResource TopTab}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ui:SafeListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ui:SafeListBox.ItemsPanel>
+                    <ui:SafeListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Title}" FontSize="15" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </ui:SafeListBox.ItemTemplate>
+                </ui:SafeListBox>
+            </DockPanel>
+        </Border>
+        <ui:PageHost x:Name="PageHost" Grid.Row="1"
+                     Content="{Binding SelectedTab.Page}"
+                     HorizontalContentAlignment="Stretch"
+                     VerticalContentAlignment="Stretch"/>
+        <Border Grid.Row="1" Panel.ZIndex="30" Background="#E6F3F5F8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel Width="420" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                <ProgressBar Height="16" Margin="0,14,0,0" IsIndeterminate="True"/>
+                <ProgressBar Height="16" Margin="0,8,0,0" Minimum="0" Maximum="{Binding BusyTotal}" Value="{Binding BusyDone}">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BusyTotal}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
+            </StackPanel>
+        </Border>
+        <Border x:Name="LogPanel" Grid.Row="2" Visibility="Collapsed" Background="#FFF8F8" BorderBrush="#8C3A3A" BorderThickness="0,1,0,0" MaxHeight="280">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,0">
+                    <Button DockPanel.Dock="Right" Content="Xóa" Click="ClearLogClick" Padding="10,2" Margin="8,0,0,0" Cursor="Hand"/>
+                    <TextBlock x:Name="LogTitle" Text="Nhật ký lỗi" Foreground="#9E2A2B" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </DockPanel>
+                <ui:SafeDataGrid x:Name="LogGrid" Margin="12,4,12,8" MaxHeight="150" MinHeight="72"
+                                 HeadersVisibility="Column" IsReadOnly="True" CanUserAddRows="False"
+                                 AutoGenerateColumns="False" SelectionMode="Single">
+                    <ui:SafeDataGrid.Columns>
+                        <DataGridTextColumn Header="Thời điểm" Binding="{Binding TimeText}" Width="150"/>
+                        <DataGridTextColumn Header="Nguồn" Binding="{Binding Source}" Width="160"/>
+                        <DataGridTextColumn Header="Nội dung" Binding="{Binding Message}" Width="*"/>
+                    </ui:SafeDataGrid.Columns>
+                </ui:SafeDataGrid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,43 @@
+<UserControl x:Class="APPQLXD.Views.AuxiliaryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:APPQLXD.Views">
+    <Grid Margin="28">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="460"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,20,0">
+                <TextBlock Text="Tiêu thụ kho phụ" Style="{StaticResource PageTitle}"/>
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                           Text="Chỉ dùng cho kho phụ thuần (không phải máy/xe/tàu). Nhập thực xuất, kiểm tra tồn lô. Máy/xe/tàu tiêu thụ qua tab Tiêu thụ quý — ghi KP lên kho đó sẽ trừ kép với sổ quý."/>
+                <Border Style="{StaticResource Banner}"><TextBlock Text="{Binding Banner}" TextWrapping="Wrap"/></Border>
+                <TextBlock Text="Ngày" Style="{StaticResource Label}"/><DatePicker SelectedDate="{Binding DocumentDate}"/>
+                <TextBlock Text="Kho phụ" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding Warehouse}"/>
+                <TextBlock Text="Lô" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Lots}" SelectedItem="{Binding Lot}" DisplayMemberPath="Display"/>
+                <TextBlock Text="Thực xuất" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericQtyBox}" Text="{Binding Actual, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="VCF" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericFactorBox}" Text="{Binding Vcf, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding Display, StringFormat=Giá trị xuất: {0}}"/>
+                <views:DynamicFieldsView DataContext="{Binding Fields}"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Lưu" Style="{StaticResource Primary}" Command="{Binding SaveCommand}"/>
+                    <Button Content="Làm mới" Style="{StaticResource Ghost}" Command="{Binding NewCommand}"/>
+                    <Button Content="Sửa dòng chọn" Style="{StaticResource Ghost}" Command="{Binding EditSelectedCommand}"/>
+                    <Button Content="Hủy phiếu" Style="{StaticResource Danger}" Command="{Binding VoidSelectedCommand}"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+        <ui:SafeDataGrid Grid.Column="1" ItemsSource="{Binding Documents}" SelectedItem="{Binding Selected}">
+            <ui:SafeDataGrid.Columns>
+                <DataGridTextColumn Header="Số" Binding="{Binding Number}" Width="100"/>
+                <DataGridTextColumn Header="Kho phụ" Binding="{Binding WarehouseName}" Width="160"/>
+                <DataGridTextColumn Header="Mặt hàng" Binding="{Binding ItemName}" Width="*"/>
+                <DataGridTextColumn Header="Thực xuất" Binding="{Binding ActualQuantity, StringFormat=N0}" Width="110"/>
+                <DataGridTextColumn Header="Giá trị xuất" Binding="{Binding InputQuantity, StringFormat=N0}" Width="110"/>
+                <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusName}" Width="100"/>
+            </ui:SafeDataGrid.Columns>
+        </ui:SafeDataGrid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,21 @@
+<Window x:Class="APPQLXD.Views.NxtWarehouseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chọn kho" Height="420" Width="380"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <DockPanel Margin="16">
+        <Button DockPanel.Dock="Bottom" Content="Xong" HorizontalAlignment="Right" Margin="0,12,0,0"
+                Style="{StaticResource Primary}" IsDefault="True" Click="OkClick"/>
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="Chọn một hoặc nhiều kho. Sổ cộng số lượng của các kho được chọn."/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,4"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

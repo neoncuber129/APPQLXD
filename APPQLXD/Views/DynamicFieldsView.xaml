@@ -1,0 +1,50 @@
+<UserControl x:Class="APPQLXD.Views.DynamicFieldsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <StackPanel Visibility="{Binding PickSample, Converter={StaticResource BoolVis}}">
+            <TextBlock Text="Bộ dữ liệu mẫu" Style="{StaticResource Label}"/>
+            <ui:SafeComboBox ItemsSource="{Binding SampleSets}" SelectedItem="{Binding SelectedSample}"/>
+            <CheckBox Margin="0,8,0,0" Content="Thêm giá trị đang nhập vào bộ mẫu đã chọn" IsChecked="{Binding AddToSample}"/>
+        </StackPanel>
+        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Label}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Label}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Foreground" Value="#C62828"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <ui:SafeComboBox IsEditable="True" IsTextSearchEnabled="False"
+                                         ItemsSource="{Binding Options}"
+                                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}">
+                            <ui:SafeComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="#1B2836"/>
+                                    <Setter Property="Background" Value="White"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="BorderBrush" Value="#C62828"/>
+                                            <Setter Property="BorderThickness" Value="2"/>
+                                            <Setter Property="Background" Value="#FFEBEE"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SafeComboBox.Style>
+                        </ui:SafeComboBox>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

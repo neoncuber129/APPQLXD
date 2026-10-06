@@ -1,0 +1,60 @@
+<UserControl x:Class="APPQLXD.Views.StockView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="220"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Tồn kho" Style="{StaticResource PageTitle}"/>
+            <TextBlock Style="{StaticResource Hint}" Text="Tồn lô = tồn đầu kỳ + tổng thực nhập − tổng thực xuất, theo từng kho. Đối soát dựng lại số tồn từ chứng từ còn hiệu lực."/>
+            <Border Style="{StaticResource Banner}"><TextBlock Text="{Binding Banner}" TextWrapping="Wrap"/></Border>
+            <WrapPanel>
+                <StackPanel Width="200" Margin="0,0,12,0">
+                    <TextBlock Text="Kho" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding Warehouse}"/>
+                </StackPanel>
+                <StackPanel Width="200" Margin="0,0,12,0">
+                    <TextBlock Text="Nhóm" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Groups}" SelectedItem="{Binding Group}"/>
+                </StackPanel>
+                <StackPanel Width="200" Margin="0,0,12,0">
+                    <TextBlock Text="Mặt hàng" Style="{StaticResource Label}"/><TextBox Text="{Binding Item, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+                <StackPanel Width="140" Margin="0,0,12,0">
+                    <TextBlock Text="Đơn giá" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericMoneyBox}" Text="{Binding Price, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+            </WrapPanel>
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Margin="0,16,12,0" Content="Hiện tồn bằng 0" IsChecked="{Binding IncludeZero}"/>
+                <Button Content="Xem tồn" Style="{StaticResource Primary}" Command="{Binding SearchCommand}"/>
+                <Button Content="Đối soát tồn" Style="{StaticResource Ghost}" Command="{Binding RebuildCommand}"/>
+            </StackPanel>
+        </StackPanel>
+        <ui:SafeDataGrid Grid.Row="1" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}">
+            <ui:SafeDataGrid.Columns>
+                <DataGridTextColumn Header="Kho" Binding="{Binding WarehouseName}" Width="140"/>
+                <DataGridTextColumn Header="Loại kho" Binding="{Binding WarehouseTypeName}" Width="100"/>
+                <DataGridTextColumn Header="Nhóm" Binding="{Binding GroupName}" Width="100"/>
+                <DataGridTextColumn Header="Mặt hàng" Binding="{Binding ItemName}" Width="*"/>
+                <DataGridTextColumn Header="ĐVT" Binding="{Binding UnitName}" Width="70"/>
+                <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, StringFormat=N0}" Width="100"/>
+                <DataGridTextColumn Header="Loại lô" Binding="{Binding LotTypeCode}" Width="72"/>
+                <DataGridTextColumn Header="Tồn thực tế" Binding="{Binding Quantity, StringFormat=N0}" Width="120"/>
+            </ui:SafeDataGrid.Columns>
+        </ui:SafeDataGrid>
+        <DockPanel Grid.Row="2" Margin="0,12,0,0">
+            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Text="Truy vết nghiệp vụ của lô đang chọn"/>
+            <ui:SafeDataGrid ItemsSource="{Binding Movements}">
+                <ui:SafeDataGrid.Columns>
+                    <DataGridTextColumn Header="Số phiếu" Binding="{Binding DocumentNumber}" Width="110"/>
+                    <DataGridTextColumn Header="Thời điểm" Binding="{Binding OccurredAt, StringFormat=dd/MM/yyyy HH:mm}" Width="140"/>
+                    <DataGridTextColumn Header="Nghiệp vụ" Binding="{Binding Reason}" Width="160"/>
+                    <DataGridTextColumn Header="Kho" Binding="{Binding WarehouseName}" Width="140"/>
+                    <DataGridTextColumn Header="Lượng thực tế" Binding="{Binding SignedQuantity, StringFormat=N0}" Width="*"/>
+                </ui:SafeDataGrid.Columns>
+            </ui:SafeDataGrid>
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,57 @@
+<UserControl x:Class="APPQLXD.Views.ImportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:APPQLXD.Views">
+    <Grid Margin="28">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="460"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,20,0">
+                <TextBlock Text="Phiếu nhập" Style="{StaticResource PageTitle}"/>
+                <TextBlock Style="{StaticResource Hint}" Text="Thực nhập = số lượng nhập × VCF. Tồn cộng thực nhập. Nếu đơn giá × số lượng khác thành tiền thì tách 2 lô, đơn giá nguyên."/>
+                <Border Style="{StaticResource Banner}"><TextBlock Text="{Binding Banner}" TextWrapping="Wrap"/></Border>
+                <TextBlock Text="Ngày" Style="{StaticResource Label}"/><DatePicker SelectedDate="{Binding DocumentDate}"/>
+                <TextBlock Text="Kho" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Warehouses}" SelectedItem="{Binding Warehouse}"/>
+                <TextBlock Text="Mặt hàng" Style="{StaticResource Label}"/><ui:SafeComboBox ItemsSource="{Binding Items}" SelectedItem="{Binding Item}"/>
+                <TextBlock Text="{Binding Info}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource Muted}"/>
+                <TextBlock Text="Đơn giá" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericMoneyBox}" Text="{Binding Price, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Số lượng nhập" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericQtyBox}" Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="VCF dùng cho phiếu này" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericFactorBox}" Text="{Binding Vcf, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Thành tiền (để trống nếu khớp đơn giá × số lượng)" Style="{StaticResource Label}"/><TextBox Style="{StaticResource NumericMoneyBox}" Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" Margin="0,10,0,0" FontWeight="SemiBold"/>
+                <ui:SafeDataGrid ItemsSource="{Binding PreviewLines}" MaxHeight="140">
+                    <ui:SafeDataGrid.Columns>
+                        <DataGridTextColumn Header="Lô" Binding="{Binding LineNo}" Width="50"/>
+                        <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, StringFormat=N0}" Width="100"/>
+                        <DataGridTextColumn Header="Số lượng" Binding="{Binding Quantity, StringFormat=N0}" Width="100"/>
+                        <DataGridTextColumn Header="Thành tiền" Binding="{Binding Amount, StringFormat=N0}" Width="110"/>
+                        <DataGridTextColumn Header="Thực nhập" Binding="{Binding Actual, StringFormat=N0}" Width="*"/>
+                    </ui:SafeDataGrid.Columns>
+                </ui:SafeDataGrid>
+                <views:DynamicFieldsView DataContext="{Binding Fields}"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Lưu" Style="{StaticResource Primary}" Command="{Binding SaveCommand}"/>
+                    <Button Content="Làm mới" Style="{StaticResource Ghost}" Command="{Binding NewCommand}"/>
+                    <Button Content="Sửa dòng chọn" Style="{StaticResource Ghost}" Command="{Binding EditSelectedCommand}"/>
+                    <Button Content="Hủy phiếu" Style="{StaticResource Danger}" Command="{Binding VoidSelectedCommand}"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+        <ui:SafeDataGrid Grid.Column="1" ItemsSource="{Binding Documents}" SelectedItem="{Binding Selected}">
+            <ui:SafeDataGrid.Columns>
+                <DataGridTextColumn Header="Số" Binding="{Binding Number}" Width="100"/>
+                <DataGridTextColumn Header="Ngày" Binding="{Binding DocumentDate, StringFormat=dd/MM/yyyy}" Width="100"/>
+                <DataGridTextColumn Header="Kho" Binding="{Binding WarehouseName}" Width="120"/>
+                <DataGridTextColumn Header="Mặt hàng" Binding="{Binding ItemName}" Width="*"/>
+                <DataGridTextColumn Header="VCF" Binding="{Binding Vcf, StringFormat=N6}" Width="80"/>
+                <DataGridTextColumn Header="Nhập" Binding="{Binding InputQuantity, StringFormat=N0}" Width="90"/>
+                <DataGridTextColumn Header="Thực nhập" Binding="{Binding ActualQuantity, StringFormat=N0}" Width="100"/>
+                <DataGridTextColumn Header="Tách lô" Binding="{Binding WasSplit}" Width="70"/>
+                <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusName}" Width="90"/>
+            </ui:SafeDataGrid.Columns>
+        </ui:SafeDataGrid>
+    </Grid>
+</UserControl>

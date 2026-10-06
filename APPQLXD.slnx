@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="APPQLXD.Core/APPQLXD.Core.csproj" />
+  <Project Path="APPQLXD.Tests/APPQLXD.Tests.csproj" />
+  <Project Path="APPQLXD/APPQLXD.csproj" />
+</Solution>

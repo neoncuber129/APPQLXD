@@ -1,0 +1,41 @@
+﻿<Application x:Class="APPQLXD.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:APPQLXD"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:vm="clr-namespace:APPQLXD.ViewModels"
+             xmlns:views="clr-namespace:APPQLXD.Views">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/AppTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style TargetType="ui:SafeComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"/>
+            <Style TargetType="ui:SafeDataGrid" BasedOn="{StaticResource {x:Type DataGrid}}"/>
+            <local:BoolVisConverter x:Key="BoolVis"/>
+            <local:BoolVisInverseConverter x:Key="BoolVisInverse"/>
+            <local:IgnoreNullConverter x:Key="IgnoreNull"/>
+            <local:OpeningGroupTotalsConverter x:Key="OpeningGroupTotals"/>
+            <DataTemplate DataType="{x:Type vm:DashboardVm}"><views:DashboardView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:GroupsVm}"><views:GroupsView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:UnitsVm}"><views:UnitsView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LotTypesVm}"><views:LotTypesView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ItemsVm}"><views:ItemsView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:WarehousesVm}"><views:WarehousesView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ConsumersVm}"><views:ConsumersView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:FieldsVm}"><views:FieldsView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SamplesVm}"><views:SamplesView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:OpeningVm}"><views:OpeningView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ImportVm}"><views:ImportView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:VoucherDeskVm}"><views:VoucherDeskView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:TransferVm}"><views:TransferView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ConsumptionVm}"><views:ConsumptionView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:AuxiliaryVm}"><views:AuxiliaryView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:AuxiliarySheetVm}"><views:AuxiliarySheetView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:StockVm}"><views:StockView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:HistoryVm}"><views:HistoryView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:CatalogHostVm}"><views:CatalogHostView/></DataTemplate>
+            <DataTemplate DataType="{x:Type vm:OpsHostVm}"><views:OpsHostView/></DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

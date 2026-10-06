@@ -1,0 +1,50 @@
+<UserControl x:Class="APPQLXD.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:ui="clr-namespace:APPQLXD.Controls"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="28">
+            <TextBlock Text="Tổng quan" Style="{StaticResource PageTitle}"/>
+            <TextBlock Style="{StaticResource Hint}" Text="Tồn = tồn đầu kỳ + thực nhập − thực xuất. Phiếu đã lưu giữ snapshot và không đổi khi danh mục thay đổi."/>
+            <Button Content="Tạo dữ liệu thử" Command="{Binding LoadDemoCommand}" Style="{StaticResource Ghost}" HorizontalAlignment="Left"/>
+            <UniformGrid Columns="4" Margin="0,8,0,16">
+                <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,12,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Muted}" Text="Mặt hàng"/>
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding ItemCount}"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,12,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Muted}" Text="Kho"/>
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding WarehouseCount}"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16" Margin="0,0,12,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Muted}" Text="Đối tượng"/>
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding ConsumerCount}"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Muted}" Text="Tổng tồn thực tế"/>
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding TotalStock, StringFormat=N0}"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+            <TextBlock Text="Chứng từ gần nhất" FontWeight="SemiBold"/>
+            <ui:SafeDataGrid ItemsSource="{Binding Recent}" Height="360">
+                <ui:SafeDataGrid.Columns>
+                    <DataGridTextColumn Header="Số" Binding="{Binding Number}" Width="110"/>
+                    <DataGridTextColumn Header="Loại" Binding="{Binding KindName}" Width="140"/>
+                    <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusName}" Width="100"/>
+                    <DataGridTextColumn Header="Ngày" Binding="{Binding DocumentDate, StringFormat=dd/MM/yyyy}" Width="110"/>
+                    <DataGridTextColumn Header="Kho" Binding="{Binding WarehouseName}" Width="140"/>
+                    <DataGridTextColumn Header="Mặt hàng" Binding="{Binding ItemName}" Width="*"/>
+                    <DataGridTextColumn Header="Thực tế" Binding="{Binding ActualQuantity, StringFormat=N0}" Width="110"/>
+                </ui:SafeDataGrid.Columns>
+            </ui:SafeDataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
