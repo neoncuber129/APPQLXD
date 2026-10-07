@@ -12,7 +12,7 @@ namespace APPQLXD.Core.Export;
 /// <summary>Xuất Excel sổ hạn mức — khớp bố cục 3 tầng header trên UI.</summary>
 public static class QuotaExcelWriter
 {
-    private const int ColCount = 19;
+    private const int ColCount = 25;
     private const uint StyleTitle = 1;
     private const uint StyleHead = 2;
     private const uint StyleBody = 3;
@@ -46,8 +46,9 @@ public static class QuotaExcelWriter
                 (2, "Hạn mức được phép sử dụng"),
                 (5, "Hoạt động của xe, máy, tàu"),
                 (9, "Nhiên liệu tiêu thụ"),
-                (15, "Cộng NLTT"), (16, "Lũy tích sử dụng"),
-                (17, "So sánh giữa hạn mức và sử dụng")
+                (15, "Cộng NLTT"),
+                (16, "Lũy tích sử dụng"),
+                (19, "So sánh giữa hạn mức và sử dụng")
             ])));
             // Hàng 3 (tầng 2)
             sheetData.AppendChild(StyledRow(3, StyleHead, FillSparse(
@@ -55,14 +56,17 @@ public static class QuotaExcelWriter
                 (2, "Xăng"), (3, "Điêzel"), (4, "Cộng"),
                 (5, "Sử dụng xăng"), (7, "Sử dụng điêzel"),
                 (9, "Xăng"), (12, "Điêzel"),
-                (17, "Còn"), (18, "Quá")
+                (16, "Xăng"), (17, "Điêzel"), (18, "Tổng"),
+                (19, "Còn"), (22, "Quá")
             ])));
             // Hàng 4 (tầng 3)
             sheetData.AppendChild(StyledRow(4, StyleHead, FillSparse(
             [
                 (5, "Km"), (6, "Giờ"), (7, "Km"), (8, "Giờ"),
                 (9, "Xe"), (10, "Máy"), (11, "Cộng"),
-                (12, "Xe"), (13, "Máy"), (14, "Cộng")
+                (12, "Xe"), (13, "Máy"), (14, "Cộng"),
+                (19, "Xăng"), (20, "Điêzel"), (21, "Tổng"),
+                (22, "Xăng"), (23, "Điêzel"), (24, "Tổng")
             ])));
 
             // Merges tầng 1 (row 2–4)
@@ -72,8 +76,8 @@ public static class QuotaExcelWriter
             Merge(merges, 5, 2, 8, 2); // Hoạt động
             Merge(merges, 9, 2, 14, 2); // NL tiêu thụ
             Merge(merges, 15, 2, 15, 4); // Cộng NLTT
-            Merge(merges, 16, 2, 16, 4); // Lũy tích
-            Merge(merges, 17, 2, 18, 2); // So sánh
+            Merge(merges, 16, 2, 18, 2); // Lũy tích
+            Merge(merges, 19, 2, 24, 2); // So sánh
 
             // Merges tầng 2 (row 3–4)
             Merge(merges, 2, 3, 2, 4); // Xăng HM
@@ -83,8 +87,11 @@ public static class QuotaExcelWriter
             Merge(merges, 7, 3, 8, 3); // Sử dụng điêzel
             Merge(merges, 9, 3, 11, 3); // Xăng NL
             Merge(merges, 12, 3, 14, 3); // Điêzel NL
-            Merge(merges, 17, 3, 17, 4); // Còn
-            Merge(merges, 18, 3, 18, 4); // Quá
+            Merge(merges, 16, 3, 16, 4); // Xăng LT
+            Merge(merges, 17, 3, 17, 4); // Điêzel LT
+            Merge(merges, 18, 3, 18, 4); // Tổng LT
+            Merge(merges, 19, 3, 21, 3); // Còn
+            Merge(merges, 22, 3, 24, 3); // Quá
 
             uint rowIndex = 5;
             foreach (var r in sheet.Rows)
@@ -108,9 +115,15 @@ public static class QuotaExcelWriter
                     Qty(r.DieselMachine),
                     Qty(r.DieselFuelTotal),
                     Qty(r.FuelTotal),
-                    Qty(r.Cumulative),
-                    Qty(r.Remaining),
-                    Qty(r.Excess)
+                    Qty(r.CumGasoline),
+                    Qty(r.CumDiesel),
+                    Qty(r.CumTotal),
+                    Qty(r.RemainGasoline),
+                    Qty(r.RemainDiesel),
+                    Qty(r.RemainTotal),
+                    Qty(r.ExcessGasoline),
+                    Qty(r.ExcessDiesel),
+                    Qty(r.ExcessTotal)
                 };
                 sheetData.AppendChild(StyledRow(rowIndex, style, values.Select(t => (t, style)).ToArray()));
                 rowIndex++;
@@ -139,10 +152,13 @@ public static class QuotaExcelWriter
     {
         double[] widths =
         [
-            8, 22, 10, 10, 10,
-            8, 8, 8, 8,
-            8, 8, 9, 8, 8, 9,
-            10, 8, 9, 9
+            6, 24, 9, 9, 9,
+            7, 7, 7, 7,
+            7, 7, 8, 7, 7, 8,
+            9,
+            8, 8, 9,
+            8, 8, 9,
+            8, 8, 9
         ];
         var cols = new Columns();
         for (uint i = 0; i < widths.Length; i++)

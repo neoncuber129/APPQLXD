@@ -196,6 +196,59 @@ public sealed class CatalogStore
         return FuelResult.Success(id, "Đã xóa loại lô.");
     }
 
+    public IReadOnlyList<LotOriginRow> GetLotOrigins(bool activeOnly = true)
+    {
+        using var db = _factory();
+        var query = db.LotOrigins.AsNoTracking().AsQueryable();
+        if (activeOnly)
+            query = query.Where(x => x.IsActive);
+        return query.OrderBy(x => x.SortOrder).ThenBy(x => x.Name)
+            .Select(x => new LotOriginRow(x.Id, x.Name, x.SortOrder, x.IsActive))
+            .ToList();
+    }
+
+    public FuelResult SaveLotOrigin(Guid? id, string name, int? sortOrder = null)
+    {
+        name = name.Trim();
+        if (name.Length == 0)
+            return FuelResult.Fail("Tên nguồn gốc lô không được trống.");
+        using var db = _factory();
+        if (db.LotOrigins.Any(x => x.Name == name && x.Id != id))
+            return FuelResult.Fail("Nguồn gốc lô đã tồn tại.");
+        LotOrigin row;
+        if (id is null)
+        {
+            var nextSort = sortOrder ?? (db.LotOrigins.Any() ? db.LotOrigins.Max(x => x.SortOrder) + 1 : 1);
+            row = new LotOrigin { Id = Guid.NewGuid(), Name = name, SortOrder = nextSort, IsActive = true };
+            db.LotOrigins.Add(row);
+        }
+        else
+        {
+            row = db.LotOrigins.FirstOrDefault(x => x.Id == id.Value) ?? throw new FuelRuleException("Không tìm thấy nguồn gốc lô.");
+            row.Name = name;
+            if (sortOrder is int sort)
+                row.SortOrder = sort;
+        }
+
+        db.SaveChanges();
+        return FuelResult.Success(row.Id, "Đã lưu nguồn gốc lô.");
+    }
+
+    public FuelResult DeleteLotOrigin(Guid id)
+    {
+        using var db = _factory();
+        var row = db.LotOrigins.FirstOrDefault(x => x.Id == id);
+        if (row is null)
+            return FuelResult.Fail("Không tìm thấy nguồn gốc lô.");
+        if (id == SeedIds.LotOriginTuMua || id == SeedIds.LotOriginTrenCap)
+            return FuelResult.Fail("Không xóa nguồn gốc lô mặc định Tự mua, Trên cấp.");
+        if (db.Lots.Any(x => x.Origin == row.Name) || db.Documents.Any(x => x.Origin == row.Name) || db.DocumentLines.Any(x => x.Origin == row.Name))
+            return FuelResult.Fail("Nguồn gốc lô đang được sử dụng, không xóa.");
+        db.LotOrigins.Remove(row);
+        db.SaveChanges();
+        return FuelResult.Success(id, "Đã xóa nguồn gốc lô.");
+    }
+
     public IReadOnlyList<ItemRow> GetItems()
     {
         if (_itemsCache is not null)
@@ -1341,5 +1394,22 @@ public sealed class CatalogStore
 
         db.SaveChanges();
         return FuelResult.Success(row.Id, "Đã lưu hạn mức.");
+    }
+
+    public FuelResult ClearMissionYearLimits(int year, NxtLotViewMode lotView)
+    {
+        if (year < 2000 || year > 2100)
+            return FuelResult.Fail("Năm không hợp lệ.");
+        if (lotView is not (NxtLotViewMode.TxSscd or NxtLotViewMode.Iuu))
+            return FuelResult.Fail("Bảng hạn mức không hợp lệ.");
+        using var db = _factory();
+        var view = (int)lotView;
+        var toRemove = db.MissionYearLimits.Where(x => x.Year == year && x.LotView == view).ToList();
+        if (toRemove.Count > 0)
+        {
+            db.MissionYearLimits.RemoveRange(toRemove);
+            db.SaveChanges();
+        }
+        return FuelResult.Success("Đã xóa toàn bộ hạn mức của năm và bảng đang chọn.");
     }
 }

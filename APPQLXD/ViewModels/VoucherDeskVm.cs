@@ -29,6 +29,8 @@ public partial class VoucherLineVm : ObservableObject
     [ObservableProperty] private LotOption? _lot;
     [ObservableProperty] private LotTypeRow? _lotType;
     [ObservableProperty] private LotTypeRow? _destinationLotType;
+    [ObservableProperty] private LotOriginRow? _originOption;
+    [ObservableProperty] private string _originText = "";
     [ObservableProperty] private ItemRow? _item;
     [ObservableProperty] private string _code = "";
     [ObservableProperty] private string _quality = "1";
@@ -58,6 +60,13 @@ public partial class VoucherLineVm : ObservableObject
 
     public ObservableCollection<SplitPartVm> SplitParts { get; } = [];
 
+    partial void OnOriginOptionChanged(LotOriginRow? value)
+    {
+        if (value is not null)
+            OriginText = value.Name;
+        Changed?.Invoke();
+    }
+
     partial void OnLotChanged(LotOption? value)
     {
         if (_suppress)
@@ -66,7 +75,17 @@ public partial class VoucherLineVm : ObservableObject
         {
             _suppress = true;
             Price = Numbers.Money(value.UnitPrice);
+            OriginText = string.IsNullOrWhiteSpace(value.Origin) ? "Tự mua" : value.Origin;
             _suppress = false;
+        }
+        else
+        {
+            if (!PriceFromAmount)
+            {
+                _suppress = true;
+                OriginText = "";
+                _suppress = false;
+            }
         }
 
         FuelTouched = true;
@@ -243,6 +262,7 @@ public partial class VoucherLineVm : ObservableObject
         Actual = Numbers.Qty(row.ActualQuantity);
         Price = Numbers.Money(row.UnitPrice);
         Amount = Numbers.Money(row.Amount);
+        OriginText = string.IsNullOrWhiteSpace(row.Origin) ? "Tự mua" : row.Origin;
         // Giữ Actual đã ghi sổ làm nguồn sự thật — đổi VCF chỉ suy ra Xuất quan sát, không làm lệch tồn.
         _fromActual = true;
         _suppress = false;
@@ -597,6 +617,8 @@ public partial class VoucherLineVm : ObservableObject
         Actual = Numbers.Qty(QuantityMath.Whole(actual));
         Price = Numbers.Money(price);
         Amount = Numbers.Money(amount);
+        OriginOption = source.OriginOption;
+        OriginText = source.OriginText;
         NeedsSplit = false;
         SplitChosen = false;
         SplitMethod = "";
@@ -655,8 +677,33 @@ public partial class SplitPartVm : ObservableObject
     }
 }
 
+public partial class LotTypeFilterItemVm : ObservableObject
+{
+    public LotTypeRow Row { get; }
+    public Guid Id => Row.Id;
+    public string Code => Row.Code;
+    public string Name => Row.Name;
+    public string Display => string.IsNullOrWhiteSpace(Row.Name) ? Row.Code : $"{Row.Code} ({Row.Name})";
+
+    [ObservableProperty] private bool _isSelected = true;
+
+    public event Action? SelectionChanged;
+
+    public LotTypeFilterItemVm(LotTypeRow row, bool isSelected = true)
+    {
+        Row = row;
+        _isSelected = isSelected;
+    }
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        SelectionChanged?.Invoke();
+    }
+}
+
 public partial class VoucherDeskVm : PageVm, IDocumentEditor
 {
+    private static HashSet<Guid>? _sessionSelectedLotTypeIds;
     private Guid? _editingId;
     private bool _listStale = true;
     private string? _listCacheKey;
@@ -678,6 +725,27 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     public ObservableCollection<OptionRow> Destinations { get; } = [];
     public ObservableCollection<LotOption> Lots { get; } = [];
     public ObservableCollection<LotTypeRow> LotTypes { get; } = [];
+    public ObservableCollection<LotOriginRow> LotOrigins { get; } = [];
+    public ObservableCollection<LotTypeFilterItemVm> LotTypeFilterItems { get; } = [];
+    [ObservableProperty] private bool _isLotTypeFilterOpen;
+
+    public string LotTypeFilterSummary
+    {
+        get
+        {
+            var total = LotTypeFilterItems.Count;
+            if (total == 0)
+                return "Loại lô hiển thị ▾";
+            var selectedCount = LotTypeFilterItems.Count(x => x.IsSelected);
+            if (selectedCount == total)
+                return "Loại lô hiển thị (Tất cả) ▾";
+            if (selectedCount == 0)
+                return "Loại lô hiển thị (0) ▾";
+            var codes = string.Join(", ", LotTypeFilterItems.Where(x => x.IsSelected).Select(x => x.Code));
+            return $"Loại lô: {codes} ▾";
+        }
+    }
+
     public IEnumerable<LotTypeRow> ConvertLotTypeChoices =>
         LotTypes.Where(x => IsTxOrSscdLotType(x.Id));
     public IEnumerable<LotOption> ConvertSourceLots =>
@@ -775,7 +843,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     [ObservableProperty] private bool _hasSplit;
     [ObservableProperty] private bool _extraFieldsOpen;
     /// <summary>Sau khi lưu thành công: giữ form mở và chuẩn bị phiếu mới.</summary>
-    [ObservableProperty] private bool _continueAfterSave;
+    [ObservableProperty] private bool _continueAfterSave = true;
     [ObservableProperty] private bool _invalidWarehouse;
     [ObservableProperty] private bool _invalidDestination;
     [ObservableProperty] private bool _invalidTarget;
@@ -1099,6 +1167,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         InvalidWarehouse = false;
         if (_loading)
             return;
+        ReloadDestinations();
         FillWarehouseSide();
         ReloadLots();
         if (IsLotConvertMode)
@@ -1160,21 +1229,22 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         var destinationId = Destination?.Id;
         _loading = true;
         Warehouses.Clear();
-        Destinations.Clear();
         foreach (var row in System.GetWarehouses())
         {
-            var label = $"{row.Name} ({row.ConsumerTypeName ?? row.TypeName})";
             Warehouses.Add(new OptionRow(row.Id, row.Name));
-            Destinations.Add(new OptionRow(row.Id, label));
         }
 
-        Destination = Destinations.FirstOrDefault(x => x.Id == destinationId);
+        ReloadDestinations(destinationId);
         Items.Clear();
         foreach (var row in System.GetItems())
             Items.Add(row);
         LotTypes.Clear();
         foreach (var row in System.GetLotTypes())
             LotTypes.Add(row);
+        SyncLotTypeFilterItems();
+        LotOrigins.Clear();
+        foreach (var row in System.GetLotOrigins())
+            LotOrigins.Add(row);
         Targets.Clear();
         foreach (var row in System.GetConsumers().OrderBy(x => x.Type).ThenBy(x => x.Name))
         {
@@ -1197,6 +1267,55 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
             ExportFields.ApplySample(null);
         _loading = false;
         ApplyWarehouseChoices(warehouseId);
+    }
+
+    private void SyncLotTypeFilterItems()
+    {
+        foreach (var item in LotTypeFilterItems)
+            item.SelectionChanged -= OnLotTypeFilterItemSelectionChanged;
+
+        LotTypeFilterItems.Clear();
+        foreach (var lt in LotTypes)
+        {
+            var isSelected = _sessionSelectedLotTypeIds is null || _sessionSelectedLotTypeIds.Contains(lt.Id);
+            var item = new LotTypeFilterItemVm(lt, isSelected);
+            item.SelectionChanged += OnLotTypeFilterItemSelectionChanged;
+            LotTypeFilterItems.Add(item);
+        }
+        OnPropertyChanged(nameof(LotTypeFilterSummary));
+    }
+
+    private void OnLotTypeFilterItemSelectionChanged()
+    {
+        if (_loading)
+            return;
+        _sessionSelectedLotTypeIds = new HashSet<Guid>(LotTypeFilterItems.Where(x => x.IsSelected).Select(x => x.Id));
+        OnPropertyChanged(nameof(LotTypeFilterSummary));
+        ReloadLots();
+    }
+
+    [RelayCommand]
+    private void SelectAllLotTypeFilters()
+    {
+        _loading = true;
+        foreach (var item in LotTypeFilterItems)
+            item.IsSelected = true;
+        _loading = false;
+        _sessionSelectedLotTypeIds = new HashSet<Guid>(LotTypeFilterItems.Select(x => x.Id));
+        OnPropertyChanged(nameof(LotTypeFilterSummary));
+        ReloadLots();
+    }
+
+    [RelayCommand]
+    private void ClearAllLotTypeFilters()
+    {
+        _loading = true;
+        foreach (var item in LotTypeFilterItems)
+            item.IsSelected = false;
+        _loading = false;
+        _sessionSelectedLotTypeIds = new HashSet<Guid>();
+        OnPropertyChanged(nameof(LotTypeFilterSummary));
+        ReloadLots();
     }
 
     private void EnsureDesk()
@@ -1357,7 +1476,18 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     private void AddLine(VoucherLineVm? after = null)
     {
         var line = MakeLine();
-        line.LotType = DefaultLotType();
+        if (!ExportDesk)
+        {
+            line.LotType = DefaultLotType();
+            line.OriginOption = DefaultLotOrigin();
+            line.OriginText = DefaultLotOrigin()?.Name ?? "Tự mua";
+        }
+        else
+        {
+            line.LotType = null;
+            line.OriginOption = null;
+            line.OriginText = "";
+        }
         line.Changed += OnLineChanged;
         line.LotChosen += ApplyChosenLot;
         var index = after is null ? Lines.Count : Lines.IndexOf(after) + 1;
@@ -2000,7 +2130,8 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
                         ActualQuantity = part.Actual,
                         UnitPrice = part.UnitPrice,
                         Amount = part.Amount,
-                        LotTypeId = line.LotType?.Id ?? DefaultLotType()?.Id
+                        LotTypeId = line.LotType?.Id ?? DefaultLotType()?.Id,
+                        Origin = line.OriginOption?.Name ?? line.OriginText ?? "Tự mua"
                     });
                 }
             }
@@ -2023,6 +2154,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
                     UnitPrice = price,
                     Amount = amount,
                     LotTypeId = ExportDesk ? line.Lot?.LotTypeId ?? line.LotType?.Id : line.LotType?.Id ?? DefaultLotType()?.Id,
+                    Origin = ExportDesk ? line.Lot?.Origin ?? line.OriginText ?? "Tự mua" : line.OriginOption?.Name ?? line.OriginText ?? "Tự mua",
                     DestinationLotTypeId = ExportDesk && IsTransferMode
                         ? line.Lot?.LotTypeId ?? line.LotType?.Id
                         : ExportDesk && IsLotConvertMode
@@ -2274,6 +2406,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
             _ => ExportSlipMode.Issue
         };
         ApplyWarehouseChoices(doc.WarehouseId);
+        ReloadDestinations(doc.DestinationWarehouseId);
         Destination = Destinations.FirstOrDefault(x => x.Id == doc.DestinationWarehouseId);
         if (ExportMode == ExportSlipMode.LotConvert)
         {
@@ -2366,6 +2499,8 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
 
             line.LotType = FindLotType(row.LotTypeId);
             line.DestinationLotType = FindLotType(row.DestinationLotTypeId ?? row.LotTypeId);
+            line.OriginText = string.IsNullOrWhiteSpace(row.Origin) ? "Tự mua" : row.Origin;
+            line.OriginOption = LotOrigins.FirstOrDefault(x => string.Equals(x.Name, line.OriginText, StringComparison.OrdinalIgnoreCase)) ?? DefaultLotOrigin();
             line.Changed += OnLineChanged;
             line.LotChosen += ApplyChosenLot;
             Lines.Add(line);
@@ -2458,7 +2593,9 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     private VoucherLineVm MakeLine() => new()
     {
         PriceFromAmount = !ExportDesk,
-        QuantityFromVehicle = ExportDesk && ShowVehicleCalc && !ManualQuantity && Lines.Count == 0
+        QuantityFromVehicle = ExportDesk && ShowVehicleCalc && !ManualQuantity && Lines.Count == 0,
+        OriginOption = ExportDesk ? null : DefaultLotOrigin(),
+        OriginText = ExportDesk ? "" : (DefaultLotOrigin()?.Name ?? "Tự mua")
     };
 
     private void BindConsumerLines()
@@ -2565,6 +2702,22 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         }
     }
 
+    private void ReloadDestinations(Guid? prefer = null)
+    {
+        var keep = prefer ?? Destination?.Id;
+        Destinations.Clear();
+        var sourceId = Warehouse?.Id;
+        foreach (var row in System.GetWarehouses())
+        {
+            if (ExportDesk && sourceId is Guid src && row.Id == src && (prefer is null || prefer != src))
+                continue;
+            var label = $"{row.Name} ({row.ConsumerTypeName ?? row.TypeName})";
+            Destinations.Add(new OptionRow(row.Id, label));
+        }
+
+        Destination = Destinations.FirstOrDefault(x => x.Id == keep);
+    }
+
     private void ApplyWarehouseChoices(Guid? prefer = null)
     {
         var pickingNew = prefer is null && Warehouse is null;
@@ -2580,6 +2733,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         _loading = loading;
         if (!loading)
         {
+            ReloadDestinations();
             ReloadLots();
             RefreshExportFields();
         }
@@ -2646,6 +2800,11 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         {
             foreach (var row in rows)
             {
+                if (_sessionSelectedLotTypeIds is not null && !_sessionSelectedLotTypeIds.Contains(row.LotTypeId))
+                {
+                    if (include is null || !include.Contains(row.LotId))
+                        continue;
+                }
                 if (seen.Add(row.LotId))
                     Lots.Add(row);
             }
@@ -2765,6 +2924,8 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         line.SelectLot(chosen);
         line.Price = Numbers.Money(chosen.UnitPrice);
         line.FillFromLot(item, chosen.FirstVcf);
+        line.LotType = FindLotType(chosen.LotTypeId);
+        line.OriginText = string.IsNullOrWhiteSpace(chosen.Origin) ? "Tự mua" : chosen.Origin;
         line.FuelTouched = false;
     }
 
@@ -2786,12 +2947,23 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     private void ApplyChosenLot(VoucherLineVm line)
     {
         var lot = line.Lot;
-        if (lot is null || _loading)
+        if (_loading)
             return;
+        if (lot is null)
+        {
+            if (ExportDesk)
+            {
+                line.LotType = null;
+                line.OriginOption = null;
+                line.OriginText = "";
+            }
+            return;
+        }
         var item = Items.FirstOrDefault(x => lot.ItemId is Guid id && x.Id == id)
             ?? Items.FirstOrDefault(x => x.Name == lot.ItemName);
         line.FillFromLot(item, lot.FirstVcf);
         line.LotType = FindLotType(lot.LotTypeId);
+        line.OriginText = string.IsNullOrWhiteSpace(lot.Origin) ? "Tự mua" : lot.Origin;
         if (IsTransferMode)
             line.DestinationLotType = FindLotType(lot.LotTypeId);
         if (IsLotConvertMode)
@@ -2807,6 +2979,11 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
 
     private LotTypeRow? DefaultLotType() =>
         LotTypes.FirstOrDefault(x => x.Id == SeedIds.LotTypeTx) ?? LotTypes.FirstOrDefault();
+
+    private LotOriginRow? DefaultLotOrigin() =>
+        LotOrigins.FirstOrDefault(x => x.Id == SeedIds.LotOriginTuMua)
+        ?? LotOrigins.FirstOrDefault(x => string.Equals(x.Name, "Tự mua", StringComparison.OrdinalIgnoreCase))
+        ?? LotOrigins.FirstOrDefault();
 
     private LotTypeRow? FindLotType(Guid? id)
     {

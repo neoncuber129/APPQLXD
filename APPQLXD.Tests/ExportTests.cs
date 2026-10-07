@@ -224,7 +224,11 @@ public class ExportTests
     {
         var sheet = new NxtTotalSheet(
         [
-            new NxtTotalRow("Xăng", "Xăng A92", 20000, Guid.NewGuid(), "TX", 10, 5, 2, 13),
+            new NxtTotalRow("Xăng", "Xăng A92", 20000, Guid.NewGuid(), "TX",
+                10, 2, 3, 5, 20,
+                5, 0, 0, 0, 5,
+                2, 0, 1, 0, 3,
+                13, 2, 2, 5, 22),
             new NxtTotalRow("Xăng", "Xăng A95", 22000, Guid.NewGuid(), "SSCĐ", 1, 0, 0, 1)
         ]);
         var bytes = NxtExcelWriter.WriteNxtTotal(sheet, 2026, 3, "Kho lớn");
@@ -236,10 +240,31 @@ public class ExportTests
             .Select(t => t.Text)
             .ToList();
         Assert.Contains("Lô", texts);
+        Assert.Contains("Tồn đầu", texts);
+        Assert.Contains("Nhập", texts);
+        Assert.Contains("Xuất", texts);
         Assert.Contains("Tồn sau", texts);
+        Assert.Contains("Kho HĐ", texts);
+        Assert.Contains("Máy", texts);
+        Assert.Contains("PT", texts);
+        Assert.Contains("Tàu", texts);
+        Assert.Contains("Tổng", texts);
         Assert.Contains("Xăng", texts);
         Assert.Contains("  TX", texts);
         Assert.Contains("Xăng A92", texts);
+
+        // Kiểm tra mapper Word
+        var request = NxtExportMapper.MapNxtTotal(sheet, 2026, 3, "Kho lớn");
+        var map = request.Rows[0];
+        Assert.Equal("20", map["$TonDau"]);
+        Assert.Equal("10", map["$TonDau_Kho"]);
+        Assert.Equal("2", map["$TonDau_May"]);
+        Assert.Equal("3", map["$TonDau_Xe"]);
+        Assert.Equal("5", map["$TonDau_Tau"]);
+        Assert.Equal("5", map["$Nhap"]);
+        Assert.Equal("3", map["$Xuat"]);
+        Assert.Equal("22", map["$TonCuoi"]);
+        Assert.Equal("13", map["$TonCuoi_Kho"]);
     }
 
     [Fact]

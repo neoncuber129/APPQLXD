@@ -43,6 +43,8 @@ internal static class SchemaPatch
                     var defaultLiteral = column == "RollTransfersIntoQuarter"
                         || (table == "ItemGroups" && column == "Scope")
                         ? "1"
+                        : column == "Origin"
+                        ? "'Tự mua'"
                         : table == "Lots" && column == "LotTypeId"
                         || ((table == "ShipQuarterBookLines" || table == "ConsumerQuarterBookLines") && column == "LotTypeId")
                         ? $"'{SeedIds.LotTypeTx}'"
@@ -66,12 +68,13 @@ internal static class SchemaPatch
                 }
             }
 
-            // Old unique key was (ItemNameKey, UnitPrice); new key includes LotTypeId.
+            // Old unique keys on Lots: drop and recreate with Origin
             Execute(connection, "DROP INDEX IF EXISTS \"IX_Lots_ItemNameKey_UnitPrice\"");
+            Execute(connection, "DROP INDEX IF EXISTS \"IX_Lots_ItemNameKey_UnitPrice_LotTypeId\"");
             if (existing.Contains("Lots"))
             {
                 Execute(connection,
-                    "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Lots_ItemNameKey_UnitPrice_LotTypeId\" ON \"Lots\" (\"ItemNameKey\", \"UnitPrice\", \"LotTypeId\")");
+                    "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Lots_ItemNameKey_UnitPrice_LotTypeId_Origin\" ON \"Lots\" (\"ItemNameKey\", \"UnitPrice\", \"LotTypeId\", \"Origin\")");
             }
 
             // Hạn mức tách TX+SSCĐ / IUU: unique (TaskId, Year, LotView).
@@ -83,7 +86,9 @@ internal static class SchemaPatch
             }
 
             added += EnsureLotTypes(connection, existing);
+            added += EnsureLotOrigins(connection, existing);
             added += BackfillLotTypeSnapshots(connection, existing);
+            added += BackfillLotOriginSnapshots(connection, existing);
             added += BackfillShipType(connection, existing);
             added += CleanupUnusedDemoOtherConsumer(connection, existing);
         }
@@ -218,6 +223,80 @@ internal static class SchemaPatch
             using var cmd = connection.CreateCommand();
             cmd.CommandText =
                 $"UPDATE \"DocumentLines\" SET \"LotTypeId\" = (SELECT \"LotTypeId\" FROM \"Lots\" WHERE \"Lots\".\"Id\" = \"DocumentLines\".\"LotId\"), \"LotTypeCode\" = COALESCE((SELECT \"Code\" FROM \"LotTypes\" INNER JOIN \"Lots\" ON \"Lots\".\"LotTypeId\" = \"LotTypes\".\"Id\" WHERE \"Lots\".\"Id\" = \"DocumentLines\".\"LotId\"), 'TX') WHERE \"LotTypeId\" IS NULL OR \"LotTypeId\" = '' OR \"LotTypeId\" = '00000000-0000-0000-0000-000000000000'";
+            added += cmd.ExecuteNonQuery();
+        }
+
+        return added;
+    }
+
+    private static int EnsureLotOrigins(System.Data.Common.DbConnection connection, HashSet<string> existing)
+    {
+        if (!existing.Contains("LotOrigins"))
+            return 0;
+        var seeds = new (Guid Id, string Name, int Sort)[]
+        {
+            (SeedIds.LotOriginTuMua, "Tự mua", 1),
+            (SeedIds.LotOriginTrenCap, "Trên cấp", 2)
+        };
+        var added = 0;
+        foreach (var seed in seeds)
+        {
+            using var check = connection.CreateCommand();
+            check.CommandText = "SELECT COUNT(1) FROM \"LotOrigins\" WHERE \"Id\" = $id OR \"Name\" = $name";
+            var idParam = check.CreateParameter();
+            idParam.ParameterName = "$id";
+            idParam.Value = seed.Id.ToString();
+            check.Parameters.Add(idParam);
+            var nameParam = check.CreateParameter();
+            nameParam.ParameterName = "$name";
+            nameParam.Value = seed.Name;
+            check.Parameters.Add(nameParam);
+            var count = Convert.ToInt32(check.ExecuteScalar());
+            if (count > 0)
+                continue;
+            using var insert = connection.CreateCommand();
+            insert.CommandText =
+                "INSERT INTO \"LotOrigins\" (\"Id\", \"Name\", \"SortOrder\", \"IsActive\") VALUES ($id, $name, $sort, 1)";
+            var p1 = insert.CreateParameter();
+            p1.ParameterName = "$id";
+            p1.Value = seed.Id.ToString();
+            insert.Parameters.Add(p1);
+            var p2 = insert.CreateParameter();
+            p2.ParameterName = "$name";
+            p2.Value = seed.Name;
+            insert.Parameters.Add(p2);
+            var p3 = insert.CreateParameter();
+            p3.ParameterName = "$sort";
+            p3.Value = seed.Sort;
+            insert.Parameters.Add(p3);
+            insert.ExecuteNonQuery();
+            added++;
+        }
+
+        return added;
+    }
+
+    private static int BackfillLotOriginSnapshots(System.Data.Common.DbConnection connection, HashSet<string> existing)
+    {
+        var added = 0;
+        if (existing.Contains("Lots"))
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "UPDATE \"Lots\" SET \"Origin\" = 'Tự mua' WHERE \"Origin\" IS NULL OR TRIM(\"Origin\") = ''";
+            added += cmd.ExecuteNonQuery();
+        }
+
+        if (existing.Contains("Documents"))
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "UPDATE \"Documents\" SET \"Origin\" = 'Tự mua' WHERE (\"Origin\" IS NULL OR TRIM(\"Origin\") = '') AND \"ItemName\" IS NOT NULL AND \"ItemName\" != ''";
+            added += cmd.ExecuteNonQuery();
+        }
+
+        if (existing.Contains("DocumentLines"))
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "UPDATE \"DocumentLines\" SET \"Origin\" = COALESCE((SELECT \"Origin\" FROM \"Lots\" WHERE \"Lots\".\"Id\" = \"DocumentLines\".\"LotId\"), 'Tự mua') WHERE \"Origin\" IS NULL OR TRIM(\"Origin\") = ''";
             added += cmd.ExecuteNonQuery();
         }
 

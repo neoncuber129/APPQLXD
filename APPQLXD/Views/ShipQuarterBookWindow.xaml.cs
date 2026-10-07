@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using APPQLXD.Core;
 using APPQLXD.Core.Calculations;
@@ -56,6 +57,7 @@ public sealed class ShipQuarterBookLineVm : INotifyPropertyChanged
     private decimal _fuelOutManual;
     private bool _manualOilOut;
     private decimal _oilOut;
+    private bool _pendingRecalculate;
     private decimal? _fuelIn;
     private decimal? _oilIn;
     private decimal? _fuelBalance;
@@ -75,6 +77,12 @@ public sealed class ShipQuarterBookLineVm : INotifyPropertyChanged
     public Guid? LineId { get; set; }
     public bool IsEditable => !IsOpening && !IsTransfer;
     public bool LotTypeLocked => IsOpening || IsTransfer;
+
+    public bool PendingRecalculate
+    {
+        get => _pendingRecalculate;
+        set { if (Set(ref _pendingRecalculate, value)) Notify(); }
+    }
 
     public Guid LotTypeId
     {
@@ -132,49 +140,91 @@ public sealed class ShipQuarterBookLineVm : INotifyPropertyChanged
     public decimal MainOpsCount
     {
         get => _mainOpsCount;
-        set { if (Set(ref _mainOpsCount, value)) Notify(); }
+        set
+        {
+            if (Set(ref _mainOpsCount, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal HoursAtBerth
     {
         get => _hoursAtBerth;
-        set { if (Set(ref _hoursAtBerth, value)) Notify(); }
+        set
+        {
+            if (Set(ref _hoursAtBerth, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal HoursCx25
     {
         get => _hoursCx25;
-        set { if (Set(ref _hoursCx25, value)) Notify(); }
+        set
+        {
+            if (Set(ref _hoursCx25, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal HoursCx50
     {
         get => _hoursCx50;
-        set { if (Set(ref _hoursCx50, value)) Notify(); }
+        set
+        {
+            if (Set(ref _hoursCx50, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal HoursCx75
     {
         get => _hoursCx75;
-        set { if (Set(ref _hoursCx75, value)) Notify(); }
+        set
+        {
+            if (Set(ref _hoursCx75, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal HoursCx100
     {
         get => _hoursCx100;
-        set { if (Set(ref _hoursCx100, value)) Notify(); }
+        set
+        {
+            if (Set(ref _hoursCx100, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal AuxOpsCount
     {
         get => _auxOpsCount;
-        set { if (Set(ref _auxOpsCount, value)) Notify(); }
+        set
+        {
+            if (Set(ref _auxOpsCount, value))
+                OnHourOrMachineChanged();
+        }
     }
 
     public decimal AuxHours
     {
         get => _auxHours;
-        set { if (Set(ref _auxHours, value)) Notify(); }
+        set
+        {
+            if (Set(ref _auxHours, value))
+                OnHourOrMachineChanged();
+        }
+    }
+
+    private void OnHourOrMachineChanged()
+    {
+        var wasPending = _pendingRecalculate;
+        if (!_manualFuelOut)
+            _pendingRecalculate = false;
+        Notify();
+        if (wasPending && !_manualFuelOut)
+            RequestRender?.Invoke();
     }
 
     public bool ManualFuelOut
@@ -275,6 +325,7 @@ public sealed class ShipQuarterBookLineVm : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action? Changed;
     public event Action<ShipQuarterBookLineVm>? DateChanged;
+    public event Action? RequestRender;
 
     private void Notify()
     {
@@ -477,7 +528,6 @@ public partial class ShipQuarterBookWindow : Window
     private void OnRowChanged()
     {
         RecalcBalances();
-        RebuildDataCells();
     }
 
     private void OnEditableDateChanged(ShipQuarterBookLineVm row)
@@ -543,9 +593,9 @@ public partial class ShipQuarterBookWindow : Window
                 HoursCx100 = x.HoursCx100,
                 AuxOpsCount = x.AuxOpsCount,
                 AuxHours = x.AuxHours,
-                ManualFuelOut = x.ManualFuelOut || x.ManualOilOut,
-                FuelOutManual = (x.ManualFuelOut || x.ManualOilOut) ? x.FuelOutManual : null,
-                ManualOilOut = x.ManualFuelOut || x.ManualOilOut,
+                ManualFuelOut = x.ManualFuelOut || x.ManualOilOut || x.PendingRecalculate,
+                FuelOutManual = (x.ManualFuelOut || x.ManualOilOut || x.PendingRecalculate) ? x.FuelOutManual : null,
+                ManualOilOut = x.ManualFuelOut || x.ManualOilOut || x.PendingRecalculate,
                 OilOut = x.OilOut,
                 LotTypeId = x.LotTypeId == Guid.Empty ? SeedIds.LotTypeTx : x.LotTypeId,
                 LotTypeCode = string.IsNullOrWhiteSpace(x.LotTypeCode) ? "TX" : x.LotTypeCode,
@@ -560,6 +610,7 @@ public partial class ShipQuarterBookWindow : Window
     {
         if (BookHost is null)
             return;
+        Keyboard.ClearFocus();
         _suppressQtyCommit = true;
         try
         {
@@ -571,6 +622,7 @@ public partial class ShipQuarterBookWindow : Window
             {
                 row.Changed -= OnRowChanged;
                 row.DateChanged -= OnEditableDateChanged;
+                row.RequestRender -= RenderBook;
             }
 
             foreach (var row in model.Rows.Where(x => x.IsEditable))
@@ -579,8 +631,22 @@ public partial class ShipQuarterBookWindow : Window
                 var manual = row.ManualFuelOut || row.ManualOilOut;
                 if (row.ManualFuelOut != manual || row.ManualOilOut != manual)
                     row.SyncManualMode(manual);
+
+                if (!manual && !row.PendingRecalculate)
+                {
+                    var formulaFuel = CalculateFormulaFuelOut(row, model.NormRates);
+                    var formulaOil = AutoOilOut(formulaFuel);
+                    var currentFuel = row.FuelOutManual > 0 ? row.FuelOutManual : formulaFuel;
+                    var currentOil = row.OilOut > 0 ? row.OilOut : formulaOil;
+                    if (currentFuel != formulaFuel || currentOil != formulaOil)
+                    {
+                        row.PendingRecalculate = true;
+                    }
+                }
+
                 row.Changed += OnRowChanged;
                 row.DateChanged += OnEditableDateChanged;
+                row.RequestRender += RenderBook;
             }
 
             RecalcBalances();
@@ -637,9 +703,9 @@ public partial class ShipQuarterBookWindow : Window
                 }
 
                 var fuelOut = ResolveFuelOut(row, model.NormRates);
-                if (!row.ManualOilOut)
+                if (!row.ManualOilOut && !row.PendingRecalculate)
                     row.SetOilOutAuto(AutoOilOut(fuelOut));
-                var oilOut = ClampQty(QuantityMath.Whole(row.OilOut));
+                var oilOut = ClampQty(QuantityMath.Whole(row.OilOut > 0 ? row.OilOut : AutoOilOut(fuelOut)));
                 fuel = QuantityMath.Whole(fuel - fuelOut);
                 oil = QuantityMath.Whole(oil - oilOut);
                 LotBalanceTips.Add(fuelLots, row.LotTypeCode, -fuelOut);
@@ -728,7 +794,10 @@ public partial class ShipQuarterBookWindow : Window
                 if (!row.ManualFuelOut)
                     SetCellText(grid, 17, FormatQty(fuelOut));
                 if (!row.ManualOilOut)
-                    SetCellText(grid, 20, FormatQty(row.OilOut == 0 ? null : row.OilOut));
+                {
+                    var oil = row.PendingRecalculate ? row.OilOut : AutoOilOut(fuelOut ?? 0);
+                    SetCellText(grid, 20, FormatQty(oil == 0 ? null : oil));
+                }
                 SetBalanceCell(grid, 18, FormatQty(row.FuelBalance), LotTip("Nhiên liệu", row.FuelBalanceLotTip));
                 SetBalanceCell(grid, 21, FormatQty(row.OilBalance), LotTip("Dầu mỡ", row.OilBalanceLotTip));
             }
@@ -765,6 +834,14 @@ public partial class ShipQuarterBookWindow : Window
                 block.Text = text;
             else if (border.Child is TextBox box)
                 box.Text = text;
+            else if (border.Child is StackPanel panel)
+            {
+                foreach (UIElement pChild in panel.Children)
+                {
+                    if (pChild is TextBlock pBlock)
+                        pBlock.Text = text;
+                }
+            }
             else if (border.Child is DatePicker)
             {
                 // Ngày giữ SelectedDate trên DatePicker — không ghi đè bằng text tồn.
@@ -793,12 +870,10 @@ public partial class ShipQuarterBookWindow : Window
         };
     }
 
-    private static decimal ResolveFuelOut(ShipQuarterBookLineVm row, IReadOnlyDictionary<string, decimal> rates)
+    public static decimal CalculateFormulaFuelOut(ShipQuarterBookLineVm row, IReadOnlyDictionary<string, decimal> rates)
     {
         try
         {
-            if (row.ManualFuelOut)
-                return ClampQty(QuantityMath.Whole(row.FuelOutManual));
             var mainMachines = QuantityMath.RoundQty(row.MainOpsCount);
             decimal total = 0;
             total = AddQty(total, SlotFuel(row.HoursAtBerth, mainMachines, rates, ShipNormSlots.AtBerth));
@@ -814,6 +889,13 @@ public partial class ShipQuarterBookWindow : Window
         {
             return MaxEditQty;
         }
+    }
+
+    private static decimal ResolveFuelOut(ShipQuarterBookLineVm row, IReadOnlyDictionary<string, decimal> rates)
+    {
+        if (row.ManualFuelOut || row.PendingRecalculate)
+            return ClampQty(QuantityMath.Whole(row.FuelOutManual));
+        return CalculateFormulaFuelOut(row, rates);
     }
 
     private static decimal SlotFuel(decimal hours, decimal machines, IReadOnlyDictionary<string, decimal> rates, string key)
@@ -925,7 +1007,8 @@ public partial class ShipQuarterBookWindow : Window
             auxHours = QuantityMath.RoundQty(AddQty(auxHours, row.AuxHours));
             var fo = ResolveFuelOut(row, model.NormRates);
             fuelOut = QuantityMath.Whole(AddQty(fuelOut, fo));
-            oilOut = QuantityMath.Whole(AddQty(oilOut, row.OilOut));
+            var oo = row.ManualOilOut || row.PendingRecalculate ? row.OilOut : (row.OilOut > 0 ? row.OilOut : AutoOilOut(fo));
+            oilOut = QuantityMath.Whole(AddQty(oilOut, oo));
             if (model.FuelIsGasoline)
                 gas = QuantityMath.Whole(AddQty(gas, fo));
             else
@@ -1012,13 +1095,32 @@ public partial class ShipQuarterBookWindow : Window
         var manual = row.ManualFuelOut;
         if (manual)
         {
+            var currentOil = row.OilOut > 0 ? row.OilOut : AutoOilOut(row.FuelOutManual);
+            if (row.OilOut == 0 && currentOil > 0)
+                row.OilOut = currentOil;
             AddQtyEdit(grid, 17, row.FuelOutManual, v => row.FuelOutManual = v, ManualBg);
             AddQtyEdit(grid, 20, row.OilOut, v => row.OilOut = OilLiters(v), ManualBg);
         }
         else
         {
-            AddLockedData(grid, 17, FormatQty(fuelOut), true);
-            AddLockedData(grid, 20, FormatQty(row.OilOut == 0 ? null : row.OilOut), true);
+            var formulaFuel = CalculateFormulaFuelOut(row, model.NormRates);
+            var formulaOil = AutoOilOut(formulaFuel);
+            var currentOil = (!row.PendingRecalculate) ? AutoOilOut(fuelOut ?? 0) : (row.OilOut > 0 ? row.OilOut : AutoOilOut(fuelOut ?? 0));
+            if (!row.PendingRecalculate && row.OilOut != currentOil)
+                row.SetOilOutAuto(currentOil);
+
+            var fuelDiffers = row.PendingRecalculate && (fuelOut != formulaFuel);
+            var oilDiffers = row.PendingRecalculate && (currentOil != formulaOil);
+
+            if (fuelDiffers)
+                AddLockedDataWithRecalc(grid, 17, FormatQty(fuelOut), row, model, formulaFuel, "lít NL");
+            else
+                AddLockedData(grid, 17, FormatQty(fuelOut), true);
+
+            if (oilDiffers)
+                AddLockedDataWithRecalc(grid, 20, FormatQty(currentOil == 0 ? null : currentOil), row, model, formulaOil, "lít dầu");
+            else
+                AddLockedData(grid, 20, FormatQty(currentOil == 0 ? null : currentOil), true);
         }
 
         AddData(grid, 18, FormatQty(row.FuelBalance), true, LotTip("Nhiên liệu", row.FuelBalanceLotTip));
@@ -1026,14 +1128,17 @@ public partial class ShipQuarterBookWindow : Window
         AddData(grid, 21, FormatQty(row.OilBalance), true, LotTip("Dầu mỡ", row.OilBalanceLotTip));
         AddRowActions(grid, 22, row);
 
-        grid.MouseRightButtonUp += (_, e) =>
+        grid.PreviewMouseRightButtonUp += (_, e) =>
         {
+            Keyboard.ClearFocus();
             ToggleRowManual(row, model);
             e.Handled = true;
         };
         grid.ToolTip = manual
             ? "Chế độ thủ công — chuột phải dòng để về tự tính (Xuất NL + dầu mỡ)."
-            : "Chế độ tự tính (khóa Xuất NL + dầu mỡ) — chuột phải dòng để nhập tay.";
+            : (row.PendingRecalculate
+                ? "Chế độ tự động (đang giữ số liệu thủ công chưa khớp công thức) — bấm 🔄 để tính lại hoặc nhập mới ở các ô giờ/máy."
+                : "Chế độ tự tính (khóa Xuất NL + dầu mỡ) — chuột phải dòng để nhập tay.");
 
         return grid;
     }
@@ -1089,17 +1194,42 @@ public partial class ShipQuarterBookWindow : Window
     {
         if (row.ManualFuelOut)
         {
+            var formulaFuel = CalculateFormulaFuelOut(row, model.NormRates);
+            var formulaOil = AutoOilOut(formulaFuel);
+            var currentOil = row.OilOut > 0 ? row.OilOut : AutoOilOut(row.FuelOutManual);
+            row.OilOut = currentOil;
             row.SyncManualMode(false);
-            row.SetOilOutAuto(AutoOilOut(ResolveFuelOut(row, model.NormRates)));
+            if (row.FuelOutManual != formulaFuel || currentOil != formulaOil)
+            {
+                row.PendingRecalculate = true;
+            }
+            else
+            {
+                row.PendingRecalculate = false;
+                row.SetOilOutAuto(formulaOil);
+            }
         }
         else
         {
             var fuel = ResolveFuelOut(row, model.NormRates);
+            var oil = row.OilOut > 0 ? row.OilOut : AutoOilOut(fuel);
             row.FuelOutManual = fuel;
-            row.SetOilOutAuto(AutoOilOut(fuel));
+            row.OilOut = oil;
+            row.PendingRecalculate = false;
             row.SyncManualMode(true);
         }
 
+        RenderBook();
+    }
+
+    private void ApplyFormulaRecalc(ShipQuarterBookLineVm row, ShipQuarterBookPopupVm model)
+    {
+        var formulaFuel = CalculateFormulaFuelOut(row, model.NormRates);
+        var formulaOil = AutoOilOut(formulaFuel);
+        row.PendingRecalculate = false;
+        row.FuelOutManual = formulaFuel;
+        row.SetOilOutAuto(formulaOil);
+        RecalcBalances();
         RenderBook();
     }
 
@@ -1287,6 +1417,66 @@ public partial class ShipQuarterBookWindow : Window
         grid.Children.Add(cell);
     }
 
+    private void AddLockedDataWithRecalc(
+        Grid grid, int column, string text, ShipQuarterBookLineVm row, ShipQuarterBookPopupVm model, decimal formulaQty, string unit)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 2, 0)
+        };
+
+        var btnRecalc = new Button
+        {
+            Content = "🔄",
+            FontSize = 10,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0, 0, 2, 0),
+            Width = 16,
+            Height = RowHeight - 8,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = $"Dữ liệu chưa khớp công thức (Công thức: {FormatQty(formulaQty)} {unit}). Nhấp để tính lại theo công thức.",
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = Brush("#D97706"),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        btnRecalc.Click += (_, e) =>
+        {
+            e.Handled = true;
+            ApplyFormulaRecalc(row, model);
+        };
+
+        var block = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            Foreground = Brush("#64748B"),
+            FontWeight = FontWeights.Normal,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        panel.Children.Add(btnRecalc);
+        panel.Children.Add(block);
+
+        var cell = new Border
+        {
+            Width = ColWidths[column],
+            Height = RowHeight,
+            Background = LockedBg,
+            BorderBrush = Line,
+            BorderThickness = new Thickness(0, 0, 1, 1),
+            ClipToBounds = true,
+            Child = panel
+        };
+        Grid.SetColumn(cell, column);
+        grid.Children.Add(cell);
+    }
+
     private void AddEdit(Grid grid, int column, string value, bool right, Action<string> set)
     {
         var box = new TextBox
@@ -1301,11 +1491,29 @@ public partial class ShipQuarterBookWindow : Window
             MaxWidth = ColWidths[column] - 2,
             TextWrapping = TextWrapping.NoWrap
         };
-        box.LostFocus += (_, _) => set(box.Text);
+        var isDetached = false;
+        box.Unloaded += (_, _) => isDetached = true;
+
+        box.TextChanged += (_, _) =>
+        {
+            if (_suppressQtyCommit || isDetached)
+                return;
+            set(box.Text);
+        };
+        box.LostFocus += (_, _) =>
+        {
+            if (_suppressQtyCommit || isDetached)
+                return;
+            set(box.Text);
+        };
         box.KeyUp += (_, e) =>
         {
             if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                if (_suppressQtyCommit || isDetached)
+                    return;
                 set(box.Text);
+            }
         };
         var cell = new Border
         {
@@ -1373,9 +1581,13 @@ public partial class ShipQuarterBookWindow : Window
             TextWrapping = TextWrapping.NoWrap
         };
         Controls.NumericFormat.SetKind(box, NumericKind.Decimal);
+
+        var isDetached = false;
+        box.Unloaded += (_, _) => isDetached = true;
+
         void Commit()
         {
-            if (_suppressQtyCommit)
+            if (_suppressQtyCommit || isDetached)
                 return;
             if (string.IsNullOrWhiteSpace(box.Text))
             {
@@ -1391,6 +1603,18 @@ public partial class ShipQuarterBookWindow : Window
             box.Text = FormatQty(qty == 0 ? null : qty);
         }
 
+        box.TextChanged += (_, _) =>
+        {
+            if (_suppressQtyCommit || isDetached)
+                return;
+            if (string.IsNullOrWhiteSpace(box.Text))
+            {
+                set(0);
+                return;
+            }
+            if (Numbers.Try(box.Text, out var qty))
+                set(ClampQty(QuantityMath.RoundQty(qty)));
+        };
         box.LostFocus += (_, _) => Commit();
         box.KeyUp += (_, e) =>
         {
@@ -1428,9 +1652,13 @@ public partial class ShipQuarterBookWindow : Window
             TextWrapping = TextWrapping.NoWrap,
             ToolTip = "Nhập giờ.phút' — ví dụ 2.30' = 2 giờ 30 phút"
         };
+
+        var isDetached = false;
+        box.Unloaded += (_, _) => isDetached = true;
+
         void Commit()
         {
-            if (_suppressQtyCommit)
+            if (_suppressQtyCommit || isDetached)
                 return;
             if (string.IsNullOrWhiteSpace(box.Text))
             {
@@ -1446,6 +1674,18 @@ public partial class ShipQuarterBookWindow : Window
             box.Text = FormatHour(hours == 0 ? null : hours);
         }
 
+        box.TextChanged += (_, _) =>
+        {
+            if (_suppressQtyCommit || isDetached)
+                return;
+            if (string.IsNullOrWhiteSpace(box.Text))
+            {
+                set(0);
+                return;
+            }
+            if (ShipHourFormat.TryParse(box.Text, out var hours))
+                set(ClampQty(QuantityMath.RoundQty(hours)));
+        };
         box.LostFocus += (_, _) => Commit();
         box.KeyUp += (_, e) =>
         {

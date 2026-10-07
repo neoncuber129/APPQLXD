@@ -418,6 +418,136 @@ public sealed class MissionQuotaTests
         Assert.Equal(2.5m, combat.DieselHours ?? 0);
     }
 
+    [Fact]
+    public void Quota_quarter_vs_cumulative_and_comparison_columns()
+    {
+        using var app = TestApp.Create();
+        // Hạn mức năm: Xăng = 100L, Điêzel = 200L, Tổng = 300L
+        Assert.True(app.System.SaveMissionYearLimit(SeedIds.MissionTaskCombat, 2026, NxtLotViewMode.TxSscd, 100m, 200m).Ok);
+
+        Assert.True(app.System.SaveImport(Import(1000m, 20000m)).Ok);
+        var lot = app.System.GetLots(SeedIds.WhMain).First(x => x.UnitPrice == 20000).LotId;
+        var vehicle = app.System.GetConsumers().Single(x => x.Id == SeedIds.Vehicle);
+        var main = app.System.GetWarehouses().Single(x => x.Id == SeedIds.WhMain);
+
+        // Q1: Xuất 40L xe (Xăng) vào 15/02/2026
+        var q1Date = new DateTime(2026, 2, 15);
+        var s1 = app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = true,
+            ExportMode = ExportSlipMode.Transfer,
+            ConsumerId = vehicle.Id,
+            DestinationWarehouseId = vehicle.Id,
+            DocumentDate = q1Date,
+            FormNumber = "DC-Q1",
+            WarehouseId = main.Id,
+            WarehouseName = main.Name,
+            WarehouseTypeName = main.TypeName,
+            MissionTaskId = SeedIds.MissionTaskCombat,
+            Lines = [new SlipLineInput { LotId = lot, ItemName = "Xăng RON 95", ObservedQuantity = 40m, ActualQuantity = 40m, Vcf = 1m, UnitPrice = 20000m }]
+        });
+        Assert.True(s1.Ok);
+
+        var vBookQ1 = app.System.GetConsumerQuarterBook(q1Date, SeedIds.Vehicle);
+        var tr1 = Assert.Single(vBookQ1.Rows, x => !x.IsOpening);
+        Assert.True(app.System.SaveConsumerQuarterBook(new ConsumerQuarterBookSaveRequest
+        {
+            ConsumerId = SeedIds.Vehicle,
+            QuarterDate = q1Date,
+            Lines =
+            [
+                new ConsumerQuarterBookLineEdit
+                {
+                    TransferDocumentId = tr1.DocumentId,
+                    DocumentNumber = tr1.DocumentNumber,
+                    DocumentDate = q1Date,
+                    Description = "Nhiệm vụ Q1",
+                    Kilometers = 100m,
+                    ActualQuantity = 40m,
+                    FuelOut = 40m,
+                    MissionTaskId = SeedIds.MissionTaskCombat,
+                    LotTypeCode = "TX",
+                    LotTypeId = SeedIds.LotTypeTx
+                }
+            ]
+        }).Ok);
+
+        // Q2: Xuất 70L xe (Xăng) vào 15/05/2026
+        var q2Date = new DateTime(2026, 5, 15);
+        var s2 = app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = true,
+            ExportMode = ExportSlipMode.Transfer,
+            ConsumerId = vehicle.Id,
+            DestinationWarehouseId = vehicle.Id,
+            DocumentDate = q2Date,
+            FormNumber = "DC-Q2",
+            WarehouseId = main.Id,
+            WarehouseName = main.Name,
+            WarehouseTypeName = main.TypeName,
+            MissionTaskId = SeedIds.MissionTaskCombat,
+            Lines = [new SlipLineInput { LotId = lot, ItemName = "Xăng RON 95", ObservedQuantity = 70m, ActualQuantity = 70m, Vcf = 1m, UnitPrice = 20000m }]
+        });
+        Assert.True(s2.Ok);
+
+        var vBookQ2 = app.System.GetConsumerQuarterBook(q2Date, SeedIds.Vehicle);
+        var tr2 = Assert.Single(vBookQ2.Rows, x => !x.IsOpening);
+        Assert.True(app.System.SaveConsumerQuarterBook(new ConsumerQuarterBookSaveRequest
+        {
+            ConsumerId = SeedIds.Vehicle,
+            QuarterDate = q2Date,
+            Lines =
+            [
+                new ConsumerQuarterBookLineEdit
+                {
+                    TransferDocumentId = tr2.DocumentId,
+                    DocumentNumber = tr2.DocumentNumber,
+                    DocumentDate = q2Date,
+                    Description = "Nhiệm vụ Q2",
+                    Kilometers = 150m,
+                    ActualQuantity = 70m,
+                    FuelOut = 70m,
+                    MissionTaskId = SeedIds.MissionTaskCombat,
+                    LotTypeCode = "TX",
+                    LotTypeId = SeedIds.LotTypeTx
+                }
+            ]
+        }).Ok);
+
+        // Kiểm tra Quý 2:
+        // - Dữ liệu trong quý (trước ô Lũy tích): chỉ tính Q2 = 70L
+        // - Lũy tích (từ 01/01 đến hết Q2): 40 + 70 = 110L
+        // - Hạn mức Xăng = 100L -> Quá Xăng = 10L, Còn Xăng = 0
+        // - Hạn mức Điêzel = 200L, Lũy tích Điêzel = 0 -> Còn Điêzel = 200L
+        // - Tổng hạn mức = 300L, Tổng lũy tích = 110L -> Còn Tổng = 190L
+        var sheetQ2 = app.System.GetQuotaSheet(2026, 2, NxtLotViewMode.TxSscd);
+        var row = Assert.Single(sheetQ2.Rows, x => x.TaskId == SeedIds.MissionTaskCombat);
+
+        Assert.Equal(70m, row.GasolineVehicle ?? 0);
+        Assert.Equal(70m, row.GasolineFuelTotal ?? 0);
+        Assert.Equal(70m, row.FuelTotal ?? 0);
+
+        Assert.Equal(110m, row.CumGasoline ?? 0);
+        Assert.Equal(0m, row.CumDiesel ?? 0);
+        Assert.Equal(110m, row.CumTotal ?? 0);
+
+        Assert.Equal(0m, row.RemainGasoline ?? 0);
+        Assert.Equal(200m, row.RemainDiesel ?? 0);
+        Assert.Equal(190m, row.RemainTotal ?? 0);
+
+        Assert.Equal(10m, row.ExcessGasoline ?? 0);
+        Assert.Equal(0m, row.ExcessDiesel ?? 0);
+        Assert.Equal(0m, row.ExcessTotal ?? 0);
+
+        // Kiểm tra ClearMissionYearLimits
+        Assert.True(app.System.ClearMissionYearLimits(2026, NxtLotViewMode.TxSscd).Ok);
+        var sheetCleared = app.System.GetQuotaSheet(2026, 2, NxtLotViewMode.TxSscd);
+        var rowCleared = Assert.Single(sheetCleared.Rows, x => x.TaskId == SeedIds.MissionTaskCombat);
+        Assert.Null(rowCleared.GasolineLimit);
+        Assert.Null(rowCleared.DieselLimit);
+        Assert.Null(rowCleared.LimitTotal);
+    }
+
     private static ImportRequest Import(decimal qty, decimal price) => new()
     {
         DocumentDate = new DateTime(2026, 1, 5),
@@ -429,3 +559,4 @@ public sealed class MissionQuotaTests
         Fields = [new FieldInput { FieldId = SeedIds.FieldInvoice, Value = "HD-NV" }]
     };
 }
+

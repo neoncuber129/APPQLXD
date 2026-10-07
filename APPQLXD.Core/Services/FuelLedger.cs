@@ -45,7 +45,28 @@ public sealed class FuelLedger
         Guid? first = null;
         foreach (var cell in request.Cells)
         {
-            var id = WriteOpening(db, cell, touched);
+            var cellRequest = cell.DocumentDate == default && request.DocumentDate != default
+                ? new OpeningRequest
+                {
+                    DocumentId = cell.DocumentId,
+                    DocumentDate = request.DocumentDate,
+                    WarehouseId = cell.WarehouseId,
+                    WarehouseName = cell.WarehouseName,
+                    WarehouseTypeName = cell.WarehouseTypeName,
+                    ItemId = cell.ItemId,
+                    ItemName = cell.ItemName,
+                    GroupName = cell.GroupName,
+                    UnitName = cell.UnitName,
+                    QualityInfo = cell.QualityInfo,
+                    Temperature = cell.Temperature,
+                    MeasurementNote = cell.MeasurementNote,
+                    UnitPrice = cell.UnitPrice,
+                    LotTypeId = cell.LotTypeId,
+                    Origin = cell.Origin,
+                    ActualQuantity = cell.ActualQuantity
+                }
+                : cell;
+            var id = WriteOpening(db, cellRequest, touched);
             first ??= id;
         }
 
@@ -86,12 +107,14 @@ public sealed class FuelLedger
         var lotType = ResolveLotType(db, request.LotTypeId);
         doc.LotTypeId = lotType.Id;
         doc.LotTypeCode = lotType.Code;
+        doc.Origin = string.IsNullOrWhiteSpace(request.Origin) ? "Tự mua" : request.Origin.Trim();
         foreach (var line in preview.Lines)
         {
-            var lot = EnsureLot(db, itemName, line.UnitPrice, lotType.Id, item.Id, groupName, unitName, quality, doc.Temperature, measurement, rule, vcf);
+            var lot = EnsureLot(db, itemName, line.UnitPrice, lotType.Id, doc.Origin, item.Id, groupName, unitName, quality, doc.Temperature, measurement, rule, vcf);
             var docLine = NewLine(doc, line.LineNo, lot, warehouse.Id, line.Quantity, line.Actual, line.Amount);
             docLine.LotTypeId = lotType.Id;
             docLine.LotTypeCode = lotType.Code;
+            docLine.Origin = lot.Origin;
             AttachLine(db, doc, docLine);
         }
 
@@ -158,15 +181,18 @@ public sealed class FuelLedger
                 if (!QuantityMath.TryWholeMoney(input.UnitPrice, out price) || price < 0)
                     throw new FuelRuleException($"Dòng {lineNo}: đơn giá phải là số nguyên không âm.");
                 lotType = ResolveLotType(db, input.LotTypeId);
+                var inputOrigin = string.IsNullOrWhiteSpace(input.Origin) ? "Tự mua" : input.Origin.Trim();
                 if (request.IsExport)
                 {
                     var key = QuantityMath.LotKey(itemName);
-                    lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
+                    lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == inputOrigin)
+                        ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == inputOrigin)
+                        ?? db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
                         ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
                         ?? throw new FuelRuleException($"Không có lô {itemName} đơn giá {price:N0} loại {lotType.Code} để xuất.");
                 }
                 else
-                    lot = EnsureLot(db, itemName, price, lotType.Id, item?.Id, groupName, unitName, quality, input.Temperature ?? item?.Temperature, item?.MeasurementNote ?? "", rule, vcf);
+                    lot = EnsureLot(db, itemName, price, lotType.Id, inputOrigin, item?.Id, groupName, unitName, quality, input.Temperature ?? item?.Temperature, item?.MeasurementNote ?? "", rule, vcf);
             }
             var observed = QuantityMath.Whole(input.ObservedQuantity);
             var actual = input.ActualQuantity is decimal given && given > 0
@@ -189,6 +215,7 @@ public sealed class FuelLedger
             line.Vcf = vcf;
             line.LotTypeId = lot.LotTypeId;
             line.LotTypeCode = lotType.Code;
+            line.Origin = lot.Origin;
             if (kind == DocumentKind.Transfer)
             {
                 var destType = ResolveLotType(db, input.DestinationLotTypeId ?? lot.LotTypeId);
@@ -333,6 +360,7 @@ public sealed class FuelLedger
         doc.UnitPrice = built[0].Line.UnitPrice;
         doc.LotTypeId = built[0].Line.LotTypeId;
         doc.LotTypeCode = built[0].Line.LotTypeCode;
+        doc.Origin = built[0].Line.Origin ?? "Tự mua";
         doc.InputQuantity = QuantityMath.Whole(built.Sum(x => x.Line.Quantity));
         doc.ActualQuantity = QuantityMath.Whole(built.Sum(x => x.Line.ActualQuantity));
         doc.Amount = built.Sum(x => x.Line.Amount);
@@ -751,7 +779,7 @@ public sealed class FuelLedger
         query.OrderByDescending(x => x.Sequence).Select(doc => new SheetHeader(
             doc.Id, doc.Kind, doc.Status, doc.DocumentDate, doc.ItemId, doc.ItemName, doc.GroupName, doc.UnitName,
             doc.QualityInfo, doc.Temperature, doc.MeasurementNote, doc.Vcf, doc.WarehouseId, doc.UnitPrice,
-            doc.LotTypeId, doc.LotTypeCode ?? "",
+            doc.LotTypeId, doc.LotTypeCode ?? "", doc.Origin ?? "Tự mua",
             doc.ActualQuantity, doc.Distance, doc.ConsumerId, doc.Norm, doc.OperatingQuantity)).ToList();
 
     /// <summary>
@@ -1758,7 +1786,8 @@ public sealed class FuelLedger
                 lot.UnitName,
                 lot.UnitPrice,
                 lot.LotTypeId,
-                LotTypeCode = lotType != null ? lotType.Code : ""
+                LotTypeCode = lotType != null ? lotType.Code : "",
+                lot.Origin
             }).ToList();
 
         var itemName = filter.ItemName?.Trim();
@@ -1775,8 +1804,8 @@ public sealed class FuelLedger
                     return false;
                 return true;
             })
-            .OrderBy(x => x.WarehouseName).ThenBy(x => x.GroupName).ThenBy(x => x.ItemName).ThenBy(x => x.UnitPrice).ThenBy(x => x.LotTypeCode)
-            .Select(x => new StockRow(x.LotId, x.WarehouseId, x.WarehouseName, Labels.Warehouse(x.Type), x.GroupName, x.ItemName, x.UnitName, x.UnitPrice, x.LotTypeId, x.LotTypeCode.Length > 0 ? x.LotTypeCode : "TX", x.Quantity))
+            .OrderBy(x => x.WarehouseName).ThenBy(x => x.GroupName).ThenBy(x => x.ItemName).ThenBy(x => x.UnitPrice).ThenBy(x => x.LotTypeCode).ThenBy(x => x.Origin)
+            .Select(x => new StockRow(x.LotId, x.WarehouseId, x.WarehouseName, Labels.Warehouse(x.Type), x.GroupName, x.ItemName, x.UnitName, x.UnitPrice, x.LotTypeId, x.LotTypeCode.Length > 0 ? x.LotTypeCode : "TX", x.Quantity, string.IsNullOrWhiteSpace(x.Origin) ? "Tự mua" : x.Origin))
             .ToList();
     }
 
@@ -1807,7 +1836,8 @@ public sealed class FuelLedger
                 lot.UnitPrice,
                 lot.LotTypeId,
                 lotType != null && lotType.Code.Length > 0 ? lotType.Code : "TX",
-                move.SignedQuantity)).ToList();
+                move.SignedQuantity,
+                string.IsNullOrWhiteSpace(lot.Origin) ? "Tự mua" : lot.Origin)).ToList();
     }
 
     public IReadOnlyList<LotOption> GetLots(Guid warehouseId, Guid? includeLotId)
@@ -1819,8 +1849,8 @@ public sealed class FuelLedger
             join lotType in db.LotTypes.AsNoTracking() on lot.LotTypeId equals lotType.Id into types
             from lotType in types.DefaultIfEmpty()
             where balance.WarehouseId == warehouseId
-            select new { lot.Id, lot.ItemId, lot.ItemName, lot.GroupName, lot.UnitPrice, lot.LotTypeId, LotTypeCode = lotType != null ? lotType.Code : "", balance.Quantity, lot.FirstVcf }).ToList()
-            .Select(x => new LotOption(x.Id, x.ItemId, x.ItemName, x.UnitPrice, x.LotTypeId, x.LotTypeCode.Length > 0 ? x.LotTypeCode : "TX", x.Quantity, x.FirstVcf, "", x.GroupName))
+            select new { lot.Id, lot.ItemId, lot.ItemName, lot.GroupName, lot.UnitPrice, lot.LotTypeId, LotTypeCode = lotType != null ? lotType.Code : "", lot.Origin, balance.Quantity, lot.FirstVcf }).ToList()
+            .Select(x => new LotOption(x.Id, x.ItemId, x.ItemName, x.UnitPrice, x.LotTypeId, x.LotTypeCode.Length > 0 ? x.LotTypeCode : "TX", x.Quantity, x.FirstVcf, "", x.GroupName, string.IsNullOrWhiteSpace(x.Origin) ? "Tự mua" : x.Origin))
             .ToList();
 
         if (includeLotId is Guid extra && rows.All(x => x.LotId != extra))
@@ -1833,12 +1863,12 @@ public sealed class FuelLedger
                 select new { Lot = l, Code = lotType != null ? lotType.Code : "" }
             ).FirstOrDefault();
             if (lot is not null)
-                rows.Add(new LotOption(lot.Lot.Id, lot.Lot.ItemId, lot.Lot.ItemName, lot.Lot.UnitPrice, lot.Lot.LotTypeId, lot.Code.Length > 0 ? lot.Code : "TX", 0, lot.Lot.FirstVcf, "", lot.Lot.GroupName));
+                rows.Add(new LotOption(lot.Lot.Id, lot.Lot.ItemId, lot.Lot.ItemName, lot.Lot.UnitPrice, lot.Lot.LotTypeId, lot.Code.Length > 0 ? lot.Code : "TX", 0, lot.Lot.FirstVcf, "", lot.Lot.GroupName, string.IsNullOrWhiteSpace(lot.Lot.Origin) ? "Tự mua" : lot.Lot.Origin));
         }
 
         return rows.Where(x => x.Quantity > 0 || x.LotId == includeLotId)
-            .OrderBy(x => x.ItemName).ThenBy(x => x.UnitPrice).ThenBy(x => x.LotTypeCode)
-            .Select(x => x with { Display = $"{x.ItemName} | giá {Whole(x.UnitPrice)} | {x.LotTypeCode} | tồn {Whole(x.Quantity)}" })
+            .OrderBy(x => x.ItemName).ThenBy(x => x.UnitPrice).ThenBy(x => x.LotTypeCode).ThenBy(x => x.Origin)
+            .Select(x => x with { Display = $"{x.ItemName} | giá {Whole(x.UnitPrice)} | {x.LotTypeCode} | {(string.IsNullOrWhiteSpace(x.Origin) ? "Tự mua" : x.Origin)} | tồn {Whole(x.Quantity)}" })
             .ToList();
     }
 
@@ -1893,17 +1923,19 @@ public sealed class FuelLedger
             throw new FuelRuleException("Số lượng tồn đầu phải lớn hơn 0.");
         var itemName = Or(request.ItemName, item.Name);
         var lotType = ResolveLotType(db, request.LotTypeId);
-        var doc = Begin(db, request.DocumentId ?? ExistingOpeningSlip(db, warehouse.Id, itemName, price, lotType.Id), DocumentKind.Opening, touched);
+        var origin = string.IsNullOrWhiteSpace(request.Origin) ? "Tự mua" : request.Origin.Trim();
+        var doc = Begin(db, request.DocumentId ?? ExistingOpeningSlip(db, warehouse.Id, itemName, price, lotType.Id, origin), DocumentKind.Opening, touched);
         var groupName = Or(request.GroupName, item.Group?.Name ?? "");
         var unitName = Or(request.UnitName, item.Unit?.Name ?? "");
         var quality = Or(request.QualityInfo, item.QualityInfo);
         var measurement = Or(request.MeasurementNote, item.MeasurementNote);
-        var lot = EnsureLot(db, itemName, price, lotType.Id, item.Id, groupName, unitName, quality, request.Temperature ?? item.Temperature, measurement, Labels.OpeningRule, 0);
+        var lot = EnsureLot(db, itemName, price, lotType.Id, origin, item.Id, groupName, unitName, quality, request.Temperature ?? item.Temperature, measurement, Labels.OpeningRule, 0);
         WriteHeader(doc, request.DocumentDate, item.Id, itemName, groupName, unitName, quality, request.Temperature ?? item.Temperature, measurement, Labels.OpeningRule, 0,
             warehouse.Id, Or(request.WarehouseName, warehouse.Name), Or(request.WarehouseTypeName, Labels.Warehouse(warehouse.Type)));
         doc.UnitPrice = price;
         doc.LotTypeId = lotType.Id;
         doc.LotTypeCode = lotType.Code;
+        doc.Origin = lot.Origin;
         doc.InputQuantity = actual;
         doc.ActualQuantity = actual;
         doc.Amount = null;
@@ -1911,24 +1943,28 @@ public sealed class FuelLedger
         var line = NewLine(doc, 1, lot, warehouse.Id, actual, actual, 0);
         line.LotTypeId = lotType.Id;
         line.LotTypeCode = lotType.Code;
+        line.Origin = lot.Origin;
         AttachLine(db, doc, line);
         AddEffects(db, doc, touched);
         return doc.Id;
     }
 
-    private static Guid? ExistingOpeningSlip(AppDbContext db, Guid warehouseId, string itemName, long price, Guid lotTypeId)
+    private static Guid? ExistingOpeningSlip(AppDbContext db, Guid warehouseId, string itemName, long price, Guid lotTypeId, string origin)
     {
         var key = QuantityMath.LotKey(itemName);
+        origin = string.IsNullOrWhiteSpace(origin) ? "Tự mua" : origin.Trim();
         return db.Documents
             .Where(x => x.Status == DocumentStatus.Active
                 && x.Kind == DocumentKind.Opening
                 && x.WarehouseId == warehouseId
                 && x.UnitPrice == price
-                && (x.LotTypeId == null || x.LotTypeId == lotTypeId))
+                && (x.LotTypeId == null || x.LotTypeId == lotTypeId)
+                && (x.Origin == null || x.Origin == origin))
             .OrderByDescending(x => x.Sequence)
             .AsEnumerable()
             .Where(x => QuantityMath.LotKey(x.ItemName) == key
-                && (x.LotTypeId ?? SeedIds.LotTypeTx) == lotTypeId)
+                && (x.LotTypeId ?? SeedIds.LotTypeTx) == lotTypeId
+                && (x.Origin ?? "Tự mua") == origin)
             .Select(x => (Guid?)x.Id)
             .FirstOrDefault();
     }
@@ -1946,16 +1982,17 @@ public sealed class FuelLedger
         if (!QuantityMath.TryWholeMoney(request.UnitPrice, out var price) || price < 0)
             throw new FuelRuleException("Đơn giá phải là số nguyên không âm.");
         var lotType = ResolveLotType(db, request.LotTypeId);
+        var origin = string.IsNullOrWhiteSpace(request.Origin) ? "Tự mua" : request.Origin.Trim();
         var key = QuantityMath.LotKey(request.ItemName);
-        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
+        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == origin)
+            ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == origin)
+            ?? db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
             ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
             ?? throw new FuelRuleException($"Không có lô {request.ItemName.Trim()} đơn giá {price:N0} loại {lotType.Code} để xuất tiêu thụ.");
 
         decimal? operating = null;
         decimal? shipNorm = null;
         var actual = QuantityMath.Whole(request.ActualQuantity);
-        // Tạm thời tiêu thụ quý của tàu dùng lượng người dùng nhập (ActualQuantity).
-        // Định mức tỷ lệ quy đổi chưa áp dụng để tính — không validate bắt buộc.
         if (consumer?.Type == ConsumerType.Ship)
         {
             if (request.OperatingQuantity is decimal run && run >= 0)
@@ -1984,6 +2021,7 @@ public sealed class FuelLedger
         doc.UnitPrice = lot.UnitPrice;
         doc.LotTypeId = lot.LotTypeId;
         doc.LotTypeCode = lotType.Code;
+        doc.Origin = lot.Origin;
         doc.InputQuantity = display;
         doc.ActualQuantity = actual;
         doc.Amount = null;
@@ -1991,6 +2029,7 @@ public sealed class FuelLedger
         line.Vcf = vcf;
         line.LotTypeId = lot.LotTypeId;
         line.LotTypeCode = lotType.Code;
+        line.Origin = lot.Origin;
         AttachLine(db, doc, line);
         if (request.Fields.Count > 0 || request.AddToSampleSetId is not null)
             ApplyFields(db, doc, DocumentFamily.Export, request.Fields, request.AddToSampleSetId);
@@ -2014,13 +2053,15 @@ public sealed class FuelLedger
                 && x.WarehouseId == warehouseId
                 && x.UnitPrice == lot.UnitPrice
                 && (x.LotTypeId == null || x.LotTypeId == lot.LotTypeId)
+                && (x.Origin == null || x.Origin == lot.Origin)
                 && x.DocumentDate >= start
                 && x.DocumentDate < end)
             .OrderByDescending(x => x.Sequence)
             .AsEnumerable()
             .Where(x => !deletedIds.Contains(x.Id)
                 && QuantityMath.LotKey(x.ItemName) == lot.ItemNameKey
-                && (x.LotTypeId ?? SeedIds.LotTypeTx) == lot.LotTypeId)
+                && (x.LotTypeId ?? SeedIds.LotTypeTx) == lot.LotTypeId
+                && (x.Origin ?? "Tự mua") == (lot.Origin ?? "Tự mua"))
             .Select(x => (Guid?)x.Id)
             .FirstOrDefault();
     }
@@ -2033,8 +2074,11 @@ public sealed class FuelLedger
         if (!QuantityMath.TryWholeMoney(request.UnitPrice, out var price) || price < 0)
             throw new FuelRuleException("Đơn giá phải là số nguyên không âm.");
         var lotType = ResolveLotType(db, request.LotTypeId);
+        var origin = string.IsNullOrWhiteSpace(request.Origin) ? "Tự mua" : request.Origin.Trim();
         var key = QuantityMath.LotKey(request.ItemName);
-        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
+        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == origin)
+            ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id && x.Origin == origin)
+            ?? db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
             ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == lotType.Id)
             ?? throw new FuelRuleException($"Không có lô {request.ItemName.Trim()} đơn giá {price:N0} loại {lotType.Code} để tiêu thụ.");
         var actual = QuantityMath.Whole(request.ActualQuantity);
@@ -2047,6 +2091,7 @@ public sealed class FuelLedger
         doc.UnitPrice = lot.UnitPrice;
         doc.LotTypeId = lot.LotTypeId;
         doc.LotTypeCode = lotType.Code;
+        doc.Origin = lot.Origin;
         doc.InputQuantity = display;
         doc.ActualQuantity = actual;
         doc.Amount = null;
@@ -2054,6 +2099,7 @@ public sealed class FuelLedger
         line.Vcf = vcf;
         line.LotTypeId = lot.LotTypeId;
         line.LotTypeCode = lotType.Code;
+        line.Origin = lot.Origin;
         AttachLine(db, doc, line);
         AddEffects(db, doc, touched);
         return doc.Id;
@@ -2138,6 +2184,7 @@ public sealed class FuelLedger
         doc.LotTypeId = lot.LotTypeId;
         if (doc.LotTypeCode.Length == 0)
             doc.LotTypeCode = lot.LotType?.Code ?? "";
+        doc.Origin = lot.Origin ?? "Tự mua";
     }
 
     private static (decimal Actual, decimal? Distance, decimal? Norm) ResolveConsumption(ConsumptionRequest request, Consumer consumer)
@@ -2253,14 +2300,15 @@ public sealed class FuelLedger
         }
     }
 
-    private static Lot EnsureLot(AppDbContext db, string itemName, long price, Guid lotTypeId, Guid? itemId, string group, string unit, string quality, decimal? temperature, string measurement, string rule, decimal firstVcf)
+    private static Lot EnsureLot(AppDbContext db, string itemName, long price, Guid lotTypeId, string origin, Guid? itemId, string group, string unit, string quality, decimal? temperature, string measurement, string rule, decimal firstVcf)
     {
         var key = QuantityMath.LotKey(itemName);
         if (key.Length == 0)
             throw new FuelRuleException("Thiếu tên mặt hàng để xác định lô.");
         var type = ResolveLotType(db, lotTypeId);
-        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == type.Id)
-            ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == type.Id);
+        origin = string.IsNullOrWhiteSpace(origin) ? "Tự mua" : origin.Trim();
+        var lot = db.Lots.Local.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == type.Id && x.Origin == origin)
+            ?? db.Lots.FirstOrDefault(x => x.ItemNameKey == key && x.UnitPrice == price && x.LotTypeId == type.Id && x.Origin == origin);
         if (lot is not null)
             return lot;
         lot = new Lot
@@ -2270,6 +2318,7 @@ public sealed class FuelLedger
             ItemNameKey = key,
             UnitPrice = price,
             LotTypeId = type.Id,
+            Origin = origin,
             ItemId = itemId,
             GroupName = group,
             UnitName = unit,
@@ -2319,6 +2368,7 @@ public sealed class FuelLedger
             ItemName = lot.ItemName,
             UnitPrice = lot.UnitPrice,
             LotTypeId = lot.LotTypeId,
+            Origin = lot.Origin ?? "Tự mua",
             Quantity = quantity,
             ActualQuantity = actual,
             Amount = amount
@@ -2354,6 +2404,7 @@ public sealed class FuelLedger
                             sourceLot.ItemName,
                             sourceLot.UnitPrice,
                             destTypeId,
+                            sourceLot.Origin,
                             sourceLot.ItemId,
                             sourceLot.GroupName,
                             sourceLot.UnitName,
@@ -2385,6 +2436,7 @@ public sealed class FuelLedger
                         sourceLot.ItemName,
                         sourceLot.UnitPrice,
                         destTypeId,
+                        sourceLot.Origin,
                         sourceLot.ItemId,
                         sourceLot.GroupName,
                         sourceLot.UnitName,
@@ -2599,7 +2651,7 @@ public sealed class FuelLedger
             doc.WarehouseName, doc.DestinationWarehouseName, doc.LotTypeCode ?? "", doc.ItemName, doc.ConsumerName, doc.UnitPrice,
             doc.InputQuantity, doc.ActualQuantity, doc.Vcf, doc.Amount, doc.WasSplit,
             doc.FormNumber, doc.Nature, doc.ReceiverPerson, doc.VehiclePlate, doc.Kilometers, doc.Mission,
-            doc.Number, doc.Distance)).AsEnumerable().Select(FinishRow).ToList();
+            doc.Number, doc.Distance, doc.Origin ?? "Tự mua")).AsEnumerable().Select(FinishRow).ToList();
 
     private static DocumentRow FinishRow(DocumentRow row) => row with
     {
@@ -2613,7 +2665,7 @@ public sealed class FuelLedger
         doc.WarehouseName, doc.DestinationWarehouseName, doc.LotTypeCode ?? "", doc.ItemName, doc.ConsumerName, doc.UnitPrice,
         doc.InputQuantity, doc.ActualQuantity, doc.Vcf, doc.Amount, doc.WasSplit,
         doc.FormNumber, doc.Nature, doc.ReceiverPerson, doc.VehiclePlate, doc.Kilometers, doc.Mission,
-        string.IsNullOrWhiteSpace(doc.FormNumber) ? doc.Number : doc.FormNumber, doc.Distance);
+        string.IsNullOrWhiteSpace(doc.FormNumber) ? doc.Number : doc.FormNumber, doc.Distance, doc.Origin ?? "Tự mua");
 
     private static DocumentDetail MapDetail(FuelDocument doc) => new(
         doc.Id, doc.Number, doc.Kind, Labels.Kind(doc.Kind), doc.Status, Labels.Status(doc.Status),
@@ -2623,9 +2675,10 @@ public sealed class FuelLedger
         doc.DestinationWarehouseId, doc.DestinationWarehouseName,
         doc.ConsumerId, doc.ConsumerName, doc.ConsumerCode, doc.ConsumerTypeName, doc.Norm, doc.Distance, doc.OperatingQuantity, doc.ManualQuantity,
         doc.UnitPrice, doc.LotTypeId, doc.LotTypeCode ?? "", doc.InputQuantity, doc.ActualQuantity, doc.Amount, doc.WasSplit,
-        doc.Lines.OrderBy(x => x.LineNo).Select(x => new LineRow(x.LineNo, x.LotId, x.WarehouseId, x.ItemName, x.UnitPrice, x.LotTypeId, x.LotTypeCode ?? "", x.DestinationLotTypeId, x.DestinationLotTypeCode ?? "", x.Quantity, x.ActualQuantity, x.Amount, x.ItemId, x.ItemCode, x.QualityGrade, x.Temperature, x.Density, x.Vcf)).ToList(),
+        doc.Lines.OrderBy(x => x.LineNo).Select(x => new LineRow(x.LineNo, x.LotId, x.WarehouseId, x.ItemName, x.UnitPrice, x.LotTypeId, x.LotTypeCode ?? "", x.DestinationLotTypeId, x.DestinationLotTypeCode ?? "", x.Quantity, x.ActualQuantity, x.Amount, x.ItemId, x.ItemCode, x.QualityGrade, x.Temperature, x.Density, x.Vcf, x.Origin ?? "Tự mua")).ToList(),
         doc.Fields.OrderBy(x => x.Name).Select(x => new FieldSnapshotRow(x.Name, x.DataType, x.IsRequired, x.Value)).ToList(),
-        new SlipInfo(doc.FormNumber, doc.OrganizationName, doc.UnitTitle, doc.SenderUnit, doc.ReceiverUnit, doc.Nature, doc.ContractOrOrder, doc.CarrierUnit, doc.PriceValidUntil, doc.DelivererName, doc.IntroDocument, doc.VehiclePlate, doc.CalibrationVolume, doc.ReceivedVolume, doc.PackageCount, doc.ReceiverPerson, doc.Kilometers, doc.Mission, doc.OriginPlace, doc.DestinationPlace, doc.Note, doc.SignerReceiver, doc.SignerDeliverer, doc.SignerFinance, doc.SignerWriter, doc.SignerChief, doc.SignerCommander, doc.AmountInWords, doc.MissionTaskId));
+        new SlipInfo(doc.FormNumber, doc.OrganizationName, doc.UnitTitle, doc.SenderUnit, doc.ReceiverUnit, doc.Nature, doc.ContractOrOrder, doc.CarrierUnit, doc.PriceValidUntil, doc.DelivererName, doc.IntroDocument, doc.VehiclePlate, doc.CalibrationVolume, doc.ReceivedVolume, doc.PackageCount, doc.ReceiverPerson, doc.Kilometers, doc.Mission, doc.OriginPlace, doc.DestinationPlace, doc.Note, doc.SignerReceiver, doc.SignerDeliverer, doc.SignerFinance, doc.SignerWriter, doc.SignerChief, doc.SignerCommander, doc.AmountInWords, doc.MissionTaskId),
+        doc.Origin ?? "Tự mua");
 
     private static string Whole(decimal value) =>
         decimal.Round(value, 0, MidpointRounding.AwayFromZero).ToString("N0", CultureInfo.GetCultureInfo("vi-VN"));

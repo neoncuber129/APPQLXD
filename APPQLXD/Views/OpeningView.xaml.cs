@@ -32,13 +32,13 @@ public partial class OpeningView : UserControl
         CommitGrid();
         if (_vm is null)
             return;
-        var dialog = new OpeningLotWindow(_vm.Items, _vm.LotTypes)
+        var dialog = new OpeningLotWindow(_vm.Items, _vm.LotTypes, _vm.LotOrigins)
         {
             Owner = Window.GetWindow(this)
         };
-        if (dialog.ShowDialog() != true || dialog.SelectedItem is null || dialog.SelectedLotType is null)
+        if (dialog.ShowDialog() != true || dialog.SelectedItem is null || dialog.SelectedLotType is null || dialog.SelectedLotOrigin is null)
             return;
-        _vm.AddLotFromDialog(dialog.SelectedItem, dialog.PriceText, dialog.SelectedLotType);
+        _vm.AddLotFromDialog(dialog.SelectedItem, dialog.PriceText, dialog.SelectedLotType, dialog.SelectedLotOrigin);
     }
 
     private void RemoveClick(object sender, RoutedEventArgs e)
@@ -128,6 +128,7 @@ public partial class OpeningView : UserControl
             EditingElementStyle = moneyEdit
         });
         Sheet.Columns.Add(Controls.SheetColumns.LotTypeColumn(_vm.LotTypes));
+        Sheet.Columns.Add(Controls.SheetColumns.LotOriginColumn(_vm.LotOrigins));
         Sheet.Columns.Add(new DataGridTextColumn
         {
             Header = "Tổng tồn",

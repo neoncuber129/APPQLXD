@@ -607,10 +607,26 @@ public partial class NxtTotalVm : PageVm
             Rows.Add(NxtTotalRowVm.Header(
                 label,
                 color,
-                members.Sum(x => x.Opening),
-                members.Sum(x => x.In),
-                members.Sum(x => x.Out),
-                members.Sum(x => x.Closing)));
+                members.Sum(x => x.OpeningMain),
+                members.Sum(x => x.OpeningMachine),
+                members.Sum(x => x.OpeningVehicle),
+                members.Sum(x => x.OpeningShip),
+                members.Sum(x => x.OpeningTotal),
+                members.Sum(x => x.InMain),
+                members.Sum(x => x.InMachine),
+                members.Sum(x => x.InVehicle),
+                members.Sum(x => x.InShip),
+                members.Sum(x => x.InTotal),
+                members.Sum(x => x.OutMain),
+                members.Sum(x => x.OutMachine),
+                members.Sum(x => x.OutVehicle),
+                members.Sum(x => x.OutShip),
+                members.Sum(x => x.OutTotal),
+                members.Sum(x => x.ClosingMain),
+                members.Sum(x => x.ClosingMachine),
+                members.Sum(x => x.ClosingVehicle),
+                members.Sum(x => x.ClosingShip),
+                members.Sum(x => x.ClosingTotal)));
 
             foreach (var typeGroup in members
                          .GroupBy(x => (x.LotTypeId, Code: string.IsNullOrWhiteSpace(x.LotTypeCode) ? "TX" : x.LotTypeCode))
@@ -621,18 +637,37 @@ public partial class NxtTotalVm : PageVm
                 Rows.Add(NxtTotalRowVm.LotTypeHeader(
                     typeGroup.Key.Code,
                     color,
-                    typeMembers.Sum(x => x.Opening),
-                    typeMembers.Sum(x => x.In),
-                    typeMembers.Sum(x => x.Out),
-                    typeMembers.Sum(x => x.Closing)));
+                    typeMembers.Sum(x => x.OpeningMain),
+                    typeMembers.Sum(x => x.OpeningMachine),
+                    typeMembers.Sum(x => x.OpeningVehicle),
+                    typeMembers.Sum(x => x.OpeningShip),
+                    typeMembers.Sum(x => x.OpeningTotal),
+                    typeMembers.Sum(x => x.InMain),
+                    typeMembers.Sum(x => x.InMachine),
+                    typeMembers.Sum(x => x.InVehicle),
+                    typeMembers.Sum(x => x.InShip),
+                    typeMembers.Sum(x => x.InTotal),
+                    typeMembers.Sum(x => x.OutMain),
+                    typeMembers.Sum(x => x.OutMachine),
+                    typeMembers.Sum(x => x.OutVehicle),
+                    typeMembers.Sum(x => x.OutShip),
+                    typeMembers.Sum(x => x.OutTotal),
+                    typeMembers.Sum(x => x.ClosingMain),
+                    typeMembers.Sum(x => x.ClosingMachine),
+                    typeMembers.Sum(x => x.ClosingVehicle),
+                    typeMembers.Sum(x => x.ClosingShip),
+                    typeMembers.Sum(x => x.ClosingTotal)));
                 foreach (var row in typeMembers)
                     Rows.Add(NxtTotalRowVm.Item(row, color));
             }
         }
 
         _loadedKey = SheetKey(capturedYear, capturedQuarter, capturedMode, capturedIds, perWh);
+        SheetRevision++;
         Ok("");
     }
+
+    [ObservableProperty] private int _sheetRevision;
 
     private string CurrentSheetKey()
     {
@@ -667,14 +702,32 @@ public sealed class NxtTotalRowVm
         ("#8B3A2F", "#AB5A4F", "#F8EBE8", "#4A1F18"),
     ];
 
+    private static string Fmt(decimal val) => val == 0 ? "" : val.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("vi-VN"));
+
     private NxtTotalRowVm(
         string lotText,
         string unitPriceText,
         string lotTypeText,
-        decimal opening,
-        decimal inn,
-        decimal outQty,
-        decimal closing,
+        decimal openingMain,
+        decimal openingMachine,
+        decimal openingVehicle,
+        decimal openingShip,
+        decimal openingTotal,
+        decimal inMain,
+        decimal inMachine,
+        decimal inVehicle,
+        decimal inShip,
+        decimal inTotal,
+        decimal outMain,
+        decimal outMachine,
+        decimal outVehicle,
+        decimal outShip,
+        decimal outTotal,
+        decimal closingMain,
+        decimal closingMachine,
+        decimal closingVehicle,
+        decimal closingShip,
+        decimal closingTotal,
         bool isGroupHeader,
         bool isLotTypeHeader,
         int colorIndex,
@@ -683,10 +736,31 @@ public sealed class NxtTotalRowVm
         LotText = lotText;
         UnitPriceText = unitPriceText;
         LotTypeText = lotTypeText;
-        Opening = opening;
-        In = inn;
-        Out = outQty;
-        Closing = closing;
+
+        OpeningMain = openingMain;
+        OpeningMachine = openingMachine;
+        OpeningVehicle = openingVehicle;
+        OpeningShip = openingShip;
+        OpeningTotal = openingTotal;
+
+        InMain = inMain;
+        InMachine = inMachine;
+        InVehicle = inVehicle;
+        InShip = inShip;
+        InTotal = inTotal;
+
+        OutMain = outMain;
+        OutMachine = outMachine;
+        OutVehicle = outVehicle;
+        OutShip = outShip;
+        OutTotal = outTotal;
+
+        ClosingMain = closingMain;
+        ClosingMachine = closingMachine;
+        ClosingVehicle = closingVehicle;
+        ClosingShip = closingShip;
+        ClosingTotal = closingTotal;
+
         IsGroupHeader = isGroupHeader;
         IsLotTypeHeader = isLotTypeHeader;
         Note = note;
@@ -719,21 +793,59 @@ public sealed class NxtTotalRowVm
         return 4 + (Math.Abs(colorIndex) % (Palette.Length - 4));
     }
 
-    public static NxtTotalRowVm Header(string groupName, int colorIndex, decimal opening, decimal inn, decimal outQty, decimal closing) =>
-        new(groupName, "", "", opening, inn, outQty, closing, true, false, colorIndex);
+    public static NxtTotalRowVm Header(
+        string groupName,
+        int colorIndex,
+        decimal openMain, decimal openMach, decimal openVeh, decimal openShip, decimal openTotal,
+        decimal inMain, decimal inMach, decimal inVeh, decimal inShip, decimal inTotal,
+        decimal outMain, decimal outMach, decimal outVeh, decimal outShip, decimal outTotal,
+        decimal closeMain, decimal closeMach, decimal closeVeh, decimal closeShip, decimal closeTotal) =>
+        new(groupName, "", "",
+            openMain, openMach, openVeh, openShip, openTotal,
+            inMain, inMach, inVeh, inShip, inTotal,
+            outMain, outMach, outVeh, outShip, outTotal,
+            closeMain, closeMach, closeVeh, closeShip, closeTotal,
+            true, false, colorIndex);
 
-    public static NxtTotalRowVm LotTypeHeader(string lotTypeCode, int colorIndex, decimal opening, decimal inn, decimal outQty, decimal closing) =>
-        new($"  {lotTypeCode}", "", lotTypeCode, opening, inn, outQty, closing, false, true, colorIndex);
+    public static NxtTotalRowVm LotTypeHeader(
+        string lotTypeCode,
+        int colorIndex,
+        decimal openMain, decimal openMach, decimal openVeh, decimal openShip, decimal openTotal,
+        decimal inMain, decimal inMach, decimal inVeh, decimal inShip, decimal inTotal,
+        decimal outMain, decimal outMach, decimal outVeh, decimal outShip, decimal outTotal,
+        decimal closeMain, decimal closeMach, decimal closeVeh, decimal closeShip, decimal closeTotal) =>
+        new($"  {lotTypeCode}", "", lotTypeCode,
+            openMain, openMach, openVeh, openShip, openTotal,
+            inMain, inMach, inVeh, inShip, inTotal,
+            outMain, outMach, outVeh, outShip, outTotal,
+            closeMain, closeMach, closeVeh, closeShip, closeTotal,
+            false, true, colorIndex);
 
     public static NxtTotalRowVm Item(NxtTotalRow row, int colorIndex) =>
         new(
             row.ItemName,
             row.UnitPrice > 0 ? row.UnitPrice.ToString("N0") : "",
             row.LotTypeCode,
-            row.Opening,
-            row.In,
-            row.Out,
-            row.Closing,
+            row.OpeningMain,
+            row.OpeningMachine,
+            row.OpeningVehicle,
+            row.OpeningShip,
+            row.OpeningTotal,
+            row.InMain,
+            row.InMachine,
+            row.InVehicle,
+            row.InShip,
+            row.InTotal,
+            row.OutMain,
+            row.OutMachine,
+            row.OutVehicle,
+            row.OutShip,
+            row.OutTotal,
+            row.ClosingMain,
+            row.ClosingMachine,
+            row.ClosingVehicle,
+            row.ClosingShip,
+            row.ClosingTotal,
             false,
             false,
             colorIndex,
@@ -742,10 +854,60 @@ public sealed class NxtTotalRowVm
     public string LotText { get; }
     public string UnitPriceText { get; }
     public string LotTypeText { get; }
-    public decimal Opening { get; }
-    public decimal In { get; }
-    public decimal Out { get; }
-    public decimal Closing { get; }
+
+    public decimal OpeningMain { get; }
+    public decimal OpeningMachine { get; }
+    public decimal OpeningVehicle { get; }
+    public decimal OpeningShip { get; }
+    public decimal OpeningTotal { get; }
+
+    public decimal InMain { get; }
+    public decimal InMachine { get; }
+    public decimal InVehicle { get; }
+    public decimal InShip { get; }
+    public decimal InTotal { get; }
+
+    public decimal OutMain { get; }
+    public decimal OutMachine { get; }
+    public decimal OutVehicle { get; }
+    public decimal OutShip { get; }
+    public decimal OutTotal { get; }
+
+    public decimal ClosingMain { get; }
+    public decimal ClosingMachine { get; }
+    public decimal ClosingVehicle { get; }
+    public decimal ClosingShip { get; }
+    public decimal ClosingTotal { get; }
+
+    public decimal Opening => OpeningTotal;
+    public decimal In => InTotal;
+    public decimal Out => OutTotal;
+    public decimal Closing => ClosingTotal;
+
+    public string OpeningMainText => Fmt(OpeningMain);
+    public string OpeningMachineText => Fmt(OpeningMachine);
+    public string OpeningVehicleText => Fmt(OpeningVehicle);
+    public string OpeningShipText => Fmt(OpeningShip);
+    public string OpeningTotalText => Fmt(OpeningTotal);
+
+    public string InMainText => Fmt(InMain);
+    public string InMachineText => Fmt(InMachine);
+    public string InVehicleText => Fmt(InVehicle);
+    public string InShipText => Fmt(InShip);
+    public string InTotalText => Fmt(InTotal);
+
+    public string OutMainText => Fmt(OutMain);
+    public string OutMachineText => Fmt(OutMachine);
+    public string OutVehicleText => Fmt(OutVehicle);
+    public string OutShipText => Fmt(OutShip);
+    public string OutTotalText => Fmt(OutTotal);
+
+    public string ClosingMainText => Fmt(ClosingMain);
+    public string ClosingMachineText => Fmt(ClosingMachine);
+    public string ClosingVehicleText => Fmt(ClosingVehicle);
+    public string ClosingShipText => Fmt(ClosingShip);
+    public string ClosingTotalText => Fmt(ClosingTotal);
+
     public string Note { get; }
     public bool IsGroupHeader { get; }
     public bool IsLotTypeHeader { get; }

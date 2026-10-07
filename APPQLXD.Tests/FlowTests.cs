@@ -4061,9 +4061,280 @@ public sealed class FlowTests
     {
         using var app = TestApp.Create();
         Assert.True(app.System.SaveImport(Import(5m, 12000m, vcf: 1m)).Ok);
-        var lot = Assert.Single(app.System.GetLots(SeedIds.WhMain).Where(x => x.UnitPrice == 12000));
+        var lot = Assert.Single(app.System.GetLots(SeedIds.WhMain), x => x.UnitPrice == 12000);
         Assert.Equal(SeedIds.LotTypeTx, lot.LotTypeId);
         Assert.Equal("TX", lot.LotTypeCode);
+    }
+
+    [Fact]
+    public void LotOrigin_catalog_contains_default_values()
+    {
+        using var app = TestApp.Create();
+        var origins = app.System.GetLotOrigins();
+        Assert.Contains(origins, x => x.Name == "Tự mua");
+        Assert.Contains(origins, x => x.Name == "Trên cấp");
+    }
+
+    [Fact]
+    public void Import_with_different_origins_creates_separate_lots_and_tracks_stock()
+    {
+        using var app = TestApp.Create();
+        var wh = SeedIds.WhMain;
+        var date = new DateTime(2026, 10, 1);
+
+        // 1. Nhập lô Tự mua
+        var import1 = app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = false,
+            DocumentDate = date,
+            WarehouseId = wh,
+            Lines =
+            [
+                new SlipLineInput
+                {
+                    ItemName = "Xăng Ron 95-III",
+                    ObservedQuantity = 100m,
+                    ActualQuantity = 100m,
+                    UnitPrice = 15000m,
+                    Amount = 1500000m,
+                    Vcf = 1m,
+                    LotTypeId = SeedIds.LotTypeTx,
+                    Origin = "Tự mua"
+                }
+            ],
+            Fields = [new FieldInput { FieldId = SeedIds.FieldReceiver, Value = "Thủ kho" }]
+        });
+        Assert.True(import1.Ok);
+
+        // 2. Nhập lô Trên cấp cùng mặt hàng, cùng đơn giá, cùng loại lô TX
+        var import2 = app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = false,
+            DocumentDate = date,
+            WarehouseId = wh,
+            Lines =
+            [
+                new SlipLineInput
+                {
+                    ItemName = "Xăng Ron 95-III",
+                    ObservedQuantity = 200m,
+                    ActualQuantity = 200m,
+                    UnitPrice = 15000m,
+                    Amount = 3000000m,
+                    Vcf = 1m,
+                    LotTypeId = SeedIds.LotTypeTx,
+                    Origin = "Trên cấp"
+                }
+            ],
+            Fields = [new FieldInput { FieldId = SeedIds.FieldReceiver, Value = "Thủ kho" }]
+        });
+        Assert.True(import2.Ok);
+
+        // 3. Kiểm tra danh sách lô: có 2 lô riêng biệt với 2 nguồn gốc khác nhau
+        var lots = app.System.GetLots(wh).Where(x => x.ItemName == "Xăng Ron 95-III" && x.UnitPrice == 15000m).ToList();
+        Assert.Equal(2, lots.Count);
+        var lotTuMua = Assert.Single(lots, x => x.Origin == "Tự mua");
+        var lotTrenCap = Assert.Single(lots, x => x.Origin == "Trên cấp");
+        Assert.Equal(100m, lotTuMua.Quantity);
+        Assert.Equal(200m, lotTrenCap.Quantity);
+
+        // 4. Xuất từ lô Trên cấp 40 lít
+        var export = app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = true,
+            ExportMode = ExportSlipMode.Retail,
+            DocumentDate = date.AddDays(1),
+            WarehouseId = wh,
+            Lines =
+            [
+                new SlipLineInput
+                {
+                    LotId = lotTrenCap.LotId,
+                    ItemName = "Xăng Ron 95-III",
+                    ObservedQuantity = 40m,
+                    ActualQuantity = 40m,
+                    UnitPrice = 15000m,
+                    Amount = 600000m,
+                    Vcf = 1m,
+                    LotTypeId = SeedIds.LotTypeTx,
+                    Origin = "Trên cấp"
+                }
+            ],
+            Fields = [new FieldInput { FieldId = SeedIds.FieldReceiver, Value = "Người nhận" }]
+        });
+        Assert.True(export.Ok);
+
+        // 5. Kiểm tra tồn sau xuất: Tự mua vẫn 100, Trên cấp còn 160
+        var lotsAfter = app.System.GetLots(wh).Where(x => x.ItemName == "Xăng Ron 95-III" && x.UnitPrice == 15000m).ToList();
+        var lotTuMuaAfter = Assert.Single(lotsAfter, x => x.Origin == "Tự mua");
+        var lotTrenCapAfter = Assert.Single(lotsAfter, x => x.Origin == "Trên cấp");
+        Assert.Equal(100m, lotTuMuaAfter.Quantity);
+        Assert.Equal(160m, lotTrenCapAfter.Quantity);
+
+        // 6. Kiểm tra danh sách phiếu trên VoucherDesk có chứa trường Origin
+        var deskImports = app.System.ListDesk(export: false, 2026, 4);
+        Assert.Contains(deskImports, x => x.Origin == "Tự mua");
+        Assert.Contains(deskImports, x => x.Origin == "Trên cấp");
+
+        var deskExports = app.System.ListDesk(export: true, 2026, 4);
+        Assert.Contains(deskExports, x => x.Origin == "Trên cấp");
+    }
+
+    [Fact]
+    public void Opening_sheet_with_different_origins_creates_separate_lots()
+    {
+        using var app = TestApp.Create();
+        var wh = SeedIds.WhMain;
+        var date = new DateTime(2026, 1, 1);
+        var item = app.System.GetItems().First();
+
+        var result = app.System.SaveOpeningSheet(new OpeningSheetRequest
+        {
+            DocumentDate = date,
+            Cells =
+            [
+                new OpeningRequest
+                {
+                    DocumentDate = date,
+                    WarehouseId = wh,
+                    ItemId = item.Id,
+                    ItemName = item.Name,
+                    UnitPrice = 20000m,
+                    LotTypeId = SeedIds.LotTypeTx,
+                    Origin = "Tự mua",
+                    ActualQuantity = 50m
+                },
+                new OpeningRequest
+                {
+                    DocumentDate = date,
+                    WarehouseId = wh,
+                    ItemId = item.Id,
+                    ItemName = item.Name,
+                    UnitPrice = 20000m,
+                    LotTypeId = SeedIds.LotTypeTx,
+                    Origin = "Trên cấp",
+                    ActualQuantity = 75m
+                }
+            ]
+        });
+        Assert.True(result.Ok);
+
+        var lots = app.System.GetLots(wh).Where(x => x.ItemId == item.Id && x.UnitPrice == 20000m).ToList();
+        Assert.Equal(2, lots.Count);
+        var lot1 = Assert.Single(lots, x => x.Origin == "Tự mua");
+        var lot2 = Assert.Single(lots, x => x.Origin == "Trên cấp");
+        Assert.Equal(50m, lot1.Quantity);
+        Assert.Equal(75m, lot2.Quantity);
+
+        var headers = app.System.ListSheetHeaders(DocumentKind.Opening);
+        Assert.Contains(headers, x => x.Origin == "Tự mua" && x.UnitPrice == 20000m);
+        Assert.Contains(headers, x => x.Origin == "Trên cấp" && x.UnitPrice == 20000m);
+    }
+
+    [Fact]
+    public void Nxt_total_breaks_down_by_main_machine_vehicle_ship_and_total()
+    {
+        using var app = TestApp.Create();
+        var item = app.System.GetItems().First(x => x.Name == "Dầu DO 0,05S");
+
+        // 1. Setup consumers for each category
+        var machineWh = app.System.GetWarehouses().First(x => x.ConsumerTypeName == "Máy").Id;
+        var vehicleWh = app.System.GetWarehouses().First(x => x.ConsumerTypeName == "Phương tiện").Id;
+        var shipWh = app.System.GetWarehouses().First(x => x.ConsumerTypeName == "Tàu").Id;
+        var mainWh = SeedIds.WhMain;
+
+        // 2. Set Opening Stock: Main=100, Machine=20, Vehicle=30, Ship=50 -> Total Opening = 200
+        var date = new DateTime(2026, 1, 1);
+        Assert.True(app.System.SaveOpeningSheet(new OpeningSheetRequest
+        {
+            DocumentDate = date,
+            Cells =
+            [
+                new OpeningRequest { DocumentDate = date, WarehouseId = mainWh, ItemId = item.Id, UnitPrice = 18000m, ActualQuantity = 100m, LotTypeId = SeedIds.LotTypeTx },
+                new OpeningRequest { DocumentDate = date, WarehouseId = machineWh, ItemId = item.Id, UnitPrice = 18000m, ActualQuantity = 20m, LotTypeId = SeedIds.LotTypeTx },
+                new OpeningRequest { DocumentDate = date, WarehouseId = vehicleWh, ItemId = item.Id, UnitPrice = 18000m, ActualQuantity = 30m, LotTypeId = SeedIds.LotTypeTx },
+                new OpeningRequest { DocumentDate = date, WarehouseId = shipWh, ItemId = item.Id, UnitPrice = 18000m, ActualQuantity = 50m, LotTypeId = SeedIds.LotTypeTx },
+            ]
+        }).Ok);
+
+        // 3. External Import to Main in Q3: 50 -> InMain += 50
+        Assert.True(app.System.SaveImport(new ImportRequest
+        {
+            DocumentDate = new DateTime(2026, 7, 5),
+            WarehouseId = mainWh,
+            ItemId = item.Id,
+            ItemName = item.Name,
+            Vcf = 1m,
+            UnitPrice = 18000m,
+            InputQuantity = 50m,
+            LotTypeId = SeedIds.LotTypeTx,
+            Fields = [new FieldInput { FieldId = SeedIds.FieldInvoice, Value = "HD-IMPORT-Q3" }]
+        }).Ok);
+
+        // 4. Transfer in Q3: Main -> Ship 25 -> OutMain += 25, InShip += 25
+        var mainLot = app.System.GetLots(mainWh).First(x => x.ItemId == item.Id && x.UnitPrice == 18000m).LotId;
+        Assert.True(app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = true,
+            ExportMode = ExportSlipMode.Transfer,
+            DocumentDate = new DateTime(2026, 7, 10),
+            WarehouseId = mainWh,
+            DestinationWarehouseId = shipWh,
+            Nature = "Cấp dầu tàu",
+            Lines = [new SlipLineInput { LotId = mainLot, ObservedQuantity = 25m, ActualQuantity = 25m, UnitPrice = 18000m, Vcf = 1m }],
+            Fields = [new FieldInput { FieldId = SeedIds.FieldReceiver, Value = "Thuyền trưởng" }]
+        }).Ok);
+
+        // 5. Consumption in Q3: Vehicle consumes 10 -> OutVehicle += 10
+        var vehLot = app.System.GetLots(vehicleWh).First(x => x.ItemId == item.Id && x.UnitPrice == 18000m).LotId;
+        Assert.True(app.System.SaveSlip(new SlipRequest
+        {
+            IsExport = true,
+            ExportMode = ExportSlipMode.Retail,
+            DocumentDate = new DateTime(2026, 8, 15),
+            WarehouseId = vehicleWh,
+            Nature = "Xe chạy",
+            Lines = [new SlipLineInput { LotId = vehLot, ObservedQuantity = 10m, ActualQuantity = 10m, UnitPrice = 18000m, Vcf = 1m }],
+            Fields = [new FieldInput { FieldId = SeedIds.FieldReceiver, Value = "Lái xe" }]
+        }).Ok);
+
+        // 6. Check GetNxtTotal
+        var allWhIds = app.System.GetWarehouses().Select(x => x.Id).ToList();
+        var totalSheet = app.System.GetNxtTotal(2026, 3, allWhIds);
+        var row = Assert.Single(totalSheet.Rows, x => x.ItemName == item.Name && x.UnitPrice == 18000L);
+
+        // Verify Tồn đầu
+        Assert.Equal(100m, row.OpeningMain);
+        Assert.Equal(20m, row.OpeningMachine);
+        Assert.Equal(30m, row.OpeningVehicle);
+        Assert.Equal(50m, row.OpeningShip);
+        Assert.Equal(200m, row.OpeningTotal);
+
+        // Verify Nhập
+        Assert.Equal(50m, row.InMain);
+        Assert.Equal(0m, row.InMachine);
+        Assert.Equal(0m, row.InVehicle);
+        Assert.Equal(25m, row.InShip); // Inbound transfer
+        Assert.Equal(50m, row.InTotal); // External import only
+
+        // Verify Xuất
+        Assert.Equal(25m, row.OutMain); // Outbound transfer
+        Assert.Equal(0m, row.OutMachine);
+        Assert.Equal(10m, row.OutVehicle); // Consumption
+        Assert.Equal(0m, row.OutShip);
+        Assert.Equal(10m, row.OutTotal); // External export only
+
+        // Verify Tồn sau
+        // Main: 100 + 50 - 25 = 125
+        Assert.Equal(125m, row.ClosingMain);
+        // Machine: 20 + 0 - 0 = 20
+        Assert.Equal(20m, row.ClosingMachine);
+        // Vehicle: 30 + 0 - 10 = 20
+        Assert.Equal(20m, row.ClosingVehicle);
+        // Ship: 50 + 25 - 0 = 75
+        Assert.Equal(75m, row.ClosingShip);
+        // Total: 200 + 50 - 10 = 240 (also 125 + 20 + 20 + 75 = 240)
+        Assert.Equal(240m, row.ClosingTotal);
     }
 
     private static decimal StockByType(FuelSystem system, string item, decimal price, Guid lotTypeId, Guid warehouse) =>

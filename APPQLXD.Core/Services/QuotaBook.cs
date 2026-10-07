@@ -22,8 +22,12 @@ public sealed class QuotaBook
         if (lotView is not (NxtLotViewMode.TxSscd or NxtLotViewMode.Iuu))
             lotView = NxtLotViewMode.TxSscd;
 
-        var fromDate = new DateTime(year, 1, 1);
-        var toDate = new DateTime(year, quarter * 3, DateTime.DaysInMonth(year, quarter * 3));
+        // Dữ liệu trong quý: từ ngày đầu quý đến ngày cuối quý.
+        var qFromDate = new DateTime(year, (quarter - 1) * 3 + 1, 1);
+        var qToDate = new DateTime(year, quarter * 3, DateTime.DaysInMonth(year, quarter * 3));
+        // Lũy tích sử dụng: từ 01/01 đầu năm đến cuối quý đang chọn.
+        var cumFromDate = new DateTime(year, 1, 1);
+        var cumToDate = qToDate;
 
         using var db = _factory();
         MissionSeeder.Ensure(db);
@@ -40,24 +44,33 @@ public sealed class QuotaBook
             .Where(x => x.Year == year && x.LotView == lotKey)
             .ToDictionary(x => x.TaskId, x => x);
 
-        var agg = AggregateUsage(db, fromDate, toDate, lotView);
+        var qAgg = AggregateUsage(db, qFromDate, qToDate, lotView);
+        var cumAgg = AggregateUsage(db, cumFromDate, cumToDate, lotView);
+
         // Dòng "Cộng tiêu thụ" sau nhóm không-hao-hụt cuối (nhóm hao hụt nằm phía dưới).
         var lastConsumptionGroupId = groups.LastOrDefault(g => !g.IsLossGroup)?.Id;
 
         var rows = new List<QuotaRow>();
         decimal sumItoIV_gasLim = 0, sumItoIV_dieLim = 0;
-        decimal sumItoIV_gasKm = 0, sumItoIV_gasHr = 0, sumItoIV_dieKm = 0, sumItoIV_dieHr = 0;
-        decimal sumItoIV_gasVeh = 0, sumItoIV_gasMach = 0, sumItoIV_dieVeh = 0, sumItoIV_dieMach = 0;
+        decimal sumItoIV_qGasKm = 0, sumItoIV_qGasHr = 0, sumItoIV_qDieKm = 0, sumItoIV_qDieHr = 0;
+        decimal sumItoIV_qGasVeh = 0, sumItoIV_qGasMach = 0, sumItoIV_qDieVeh = 0, sumItoIV_qDieMach = 0;
+        decimal sumItoIV_cumGasKm = 0, sumItoIV_cumGasHr = 0, sumItoIV_cumDieKm = 0, sumItoIV_cumDieHr = 0;
+        decimal sumItoIV_cumGasVeh = 0, sumItoIV_cumGasMach = 0, sumItoIV_cumDieVeh = 0, sumItoIV_cumDieMach = 0;
+
         decimal sumAll_gasLim = 0, sumAll_dieLim = 0;
-        decimal sumAll_gasKm = 0, sumAll_gasHr = 0, sumAll_dieKm = 0, sumAll_dieHr = 0;
-        decimal sumAll_gasVeh = 0, sumAll_gasMach = 0, sumAll_dieVeh = 0, sumAll_dieMach = 0;
+        decimal sumAll_qGasKm = 0, sumAll_qGasHr = 0, sumAll_qDieKm = 0, sumAll_qDieHr = 0;
+        decimal sumAll_qGasVeh = 0, sumAll_qGasMach = 0, sumAll_qDieVeh = 0, sumAll_qDieMach = 0;
+        decimal sumAll_cumGasKm = 0, sumAll_cumGasHr = 0, sumAll_cumDieKm = 0, sumAll_cumDieHr = 0;
+        decimal sumAll_cumGasVeh = 0, sumAll_cumGasMach = 0, sumAll_cumDieVeh = 0, sumAll_cumDieMach = 0;
 
         foreach (var group in groups)
         {
             var groupTasks = tasks.Where(t => t.GroupId == group.Id).ToList();
             decimal gGasLim = 0, gDieLim = 0;
-            decimal gGasKm = 0, gGasHr = 0, gDieKm = 0, gDieHr = 0;
-            decimal gGasVeh = 0, gGasMach = 0, gDieVeh = 0, gDieMach = 0;
+            decimal gQGasKm = 0, gQGasHr = 0, gQDieKm = 0, gQDieHr = 0;
+            decimal gQGasVeh = 0, gQGasMach = 0, gQDieVeh = 0, gQDieMach = 0;
+            decimal gCumGasKm = 0, gCumGasHr = 0, gCumDieKm = 0, gCumDieHr = 0;
+            decimal gCumGasVeh = 0, gCumGasMach = 0, gCumDieVeh = 0, gCumDieMach = 0;
 
             var groupRows = new List<QuotaRow>();
             var idx = 1;
@@ -66,19 +79,26 @@ public sealed class QuotaBook
                 limits.TryGetValue(task.Id, out var lim);
                 var gasLim = lim?.GasolineLimit ?? 0;
                 var dieLim = lim?.DieselLimit ?? 0;
-                agg.TryGetValue(task.Id, out var u);
-                u ??= Usage.Empty;
+
+                qAgg.TryGetValue(task.Id, out var uQ);
+                uQ ??= Usage.Empty;
+
+                cumAgg.TryGetValue(task.Id, out var uCum);
+                uCum ??= Usage.Empty;
 
                 groupRows.Add(MakeTaskRow(
                     idx.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     task.Name,
                     task.Id,
-                    gasLim, dieLim, u,
+                    gasLim, dieLim, uQ, uCum,
                     isHeader: false));
 
                 gGasLim += gasLim; gDieLim += dieLim;
-                gGasKm += u.GasKm; gGasHr += u.GasHours; gDieKm += u.DieKm; gDieHr += u.DieHours;
-                gGasVeh += u.GasVehicle; gGasMach += u.GasMachine; gDieVeh += u.DieVehicle; gDieMach += u.DieMachine;
+                gQGasKm += uQ.GasKm; gQGasHr += uQ.GasHours; gQDieKm += uQ.DieKm; gQDieHr += uQ.DieHours;
+                gQGasVeh += uQ.GasVehicle; gQGasMach += uQ.GasMachine; gQDieVeh += uQ.DieVehicle; gQDieMach += uQ.DieMachine;
+
+                gCumGasKm += uCum.GasKm; gCumGasHr += uCum.GasHours; gCumDieKm += uCum.DieKm; gCumDieHr += uCum.DieHours;
+                gCumGasVeh += uCum.GasVehicle; gCumGasMach += uCum.GasMachine; gCumDieVeh += uCum.DieVehicle; gCumDieMach += uCum.DieMachine;
                 idx++;
             }
 
@@ -88,19 +108,24 @@ public sealed class QuotaBook
                 group.Name,
                 null,
                 gGasLim, gDieLim,
-                new Usage(gGasKm, gGasHr, gDieKm, gDieHr, gGasVeh, gGasMach, gDieVeh, gDieMach),
+                new Usage(gQGasKm, gQGasHr, gQDieKm, gQDieHr, gQGasVeh, gQGasMach, gQDieVeh, gQDieMach),
+                new Usage(gCumGasKm, gCumGasHr, gCumDieKm, gCumDieHr, gCumGasVeh, gCumGasMach, gCumDieVeh, gCumDieMach),
                 isHeader: true));
             rows.AddRange(groupRows);
 
             sumAll_gasLim += gGasLim; sumAll_dieLim += gDieLim;
-            sumAll_gasKm += gGasKm; sumAll_gasHr += gGasHr; sumAll_dieKm += gDieKm; sumAll_dieHr += gDieHr;
-            sumAll_gasVeh += gGasVeh; sumAll_gasMach += gGasMach; sumAll_dieVeh += gDieVeh; sumAll_dieMach += gDieMach;
+            sumAll_qGasKm += gQGasKm; sumAll_qGasHr += gQGasHr; sumAll_qDieKm += gQDieKm; sumAll_qDieHr += gQDieHr;
+            sumAll_qGasVeh += gQGasVeh; sumAll_qGasMach += gQGasMach; sumAll_qDieVeh += gQDieVeh; sumAll_qDieMach += gQDieMach;
+            sumAll_cumGasKm += gCumGasKm; sumAll_cumGasHr += gCumGasHr; sumAll_cumDieKm += gCumDieKm; sumAll_cumDieHr += gCumDieHr;
+            sumAll_cumGasVeh += gCumGasVeh; sumAll_cumGasMach += gCumGasMach; sumAll_cumDieVeh += gCumDieVeh; sumAll_cumDieMach += gCumDieMach;
 
             if (!group.IsLossGroup)
             {
                 sumItoIV_gasLim += gGasLim; sumItoIV_dieLim += gDieLim;
-                sumItoIV_gasKm += gGasKm; sumItoIV_gasHr += gGasHr; sumItoIV_dieKm += gDieKm; sumItoIV_dieHr += gDieHr;
-                sumItoIV_gasVeh += gGasVeh; sumItoIV_gasMach += gGasMach; sumItoIV_dieVeh += gDieVeh; sumItoIV_dieMach += gDieMach;
+                sumItoIV_qGasKm += gQGasKm; sumItoIV_qGasHr += gQGasHr; sumItoIV_qDieKm += gQDieKm; sumItoIV_qDieHr += gQDieHr;
+                sumItoIV_qGasVeh += gQGasVeh; sumItoIV_qGasMach += gQGasMach; sumItoIV_qDieVeh += gQDieVeh; sumItoIV_qDieMach += gQDieMach;
+                sumItoIV_cumGasKm += gCumGasKm; sumItoIV_cumGasHr += gCumGasHr; sumItoIV_cumDieKm += gCumDieKm; sumItoIV_cumDieHr += gCumDieHr;
+                sumItoIV_cumGasVeh += gCumGasVeh; sumItoIV_cumGasMach += gCumGasMach; sumItoIV_cumDieVeh += gCumDieVeh; sumItoIV_cumDieMach += gCumDieMach;
             }
 
             if (group.Id == lastConsumptionGroupId)
@@ -110,8 +135,10 @@ public sealed class QuotaBook
                     "Cộng tiêu thụ",
                     null,
                     sumItoIV_gasLim, sumItoIV_dieLim,
-                    new Usage(sumItoIV_gasKm, sumItoIV_gasHr, sumItoIV_dieKm, sumItoIV_dieHr,
-                        sumItoIV_gasVeh, sumItoIV_gasMach, sumItoIV_dieVeh, sumItoIV_dieMach),
+                    new Usage(sumItoIV_qGasKm, sumItoIV_qGasHr, sumItoIV_qDieKm, sumItoIV_qDieHr,
+                        sumItoIV_qGasVeh, sumItoIV_qGasMach, sumItoIV_qDieVeh, sumItoIV_qDieMach),
+                    new Usage(sumItoIV_cumGasKm, sumItoIV_cumGasHr, sumItoIV_cumDieKm, sumItoIV_cumDieHr,
+                        sumItoIV_cumGasVeh, sumItoIV_cumGasMach, sumItoIV_cumDieVeh, sumItoIV_cumDieMach),
                     isHeader: true));
             }
         }
@@ -121,11 +148,13 @@ public sealed class QuotaBook
             "Tổng cộng",
             null,
             sumAll_gasLim, sumAll_dieLim,
-            new Usage(sumAll_gasKm, sumAll_gasHr, sumAll_dieKm, sumAll_dieHr,
-                sumAll_gasVeh, sumAll_gasMach, sumAll_dieVeh, sumAll_dieMach),
+            new Usage(sumAll_qGasKm, sumAll_qGasHr, sumAll_qDieKm, sumAll_qDieHr,
+                sumAll_qGasVeh, sumAll_qGasMach, sumAll_qDieVeh, sumAll_qDieMach),
+            new Usage(sumAll_cumGasKm, sumAll_cumGasHr, sumAll_cumDieKm, sumAll_cumDieHr,
+                sumAll_cumGasVeh, sumAll_cumGasMach, sumAll_cumDieVeh, sumAll_cumDieMach),
             isHeader: true));
 
-        return new QuotaSheet(year, quarter, lotView, fromDate, toDate, rows);
+        return new QuotaSheet(year, quarter, lotView, qFromDate, qToDate, rows, cumFromDate);
     }
 
     private static QuotaRow MakeTaskRow(
@@ -134,15 +163,27 @@ public sealed class QuotaBook
         Guid? taskId,
         decimal gasLim,
         decimal dieLim,
-        Usage u,
+        Usage uQ,
+        Usage uCum,
         bool isHeader)
     {
         var limTotal = QuantityMath.Whole(gasLim + dieLim);
-        var gasFuel = QuantityMath.Whole(u.GasVehicle + u.GasMachine);
-        var dieFuel = QuantityMath.Whole(u.DieVehicle + u.DieMachine);
-        var fuelTotal = QuantityMath.Whole(gasFuel + dieFuel);
-        var remain = limTotal > fuelTotal ? QuantityMath.Whole(limTotal - fuelTotal) : 0;
-        var over = fuelTotal > limTotal ? QuantityMath.Whole(fuelTotal - limTotal) : 0;
+        var qGasFuel = QuantityMath.Whole(uQ.GasVehicle + uQ.GasMachine);
+        var qDieFuel = QuantityMath.Whole(uQ.DieVehicle + uQ.DieMachine);
+        var qFuelTotal = QuantityMath.Whole(qGasFuel + qDieFuel);
+
+        var cumGas = QuantityMath.Whole(uCum.GasVehicle + uCum.GasMachine);
+        var cumDie = QuantityMath.Whole(uCum.DieVehicle + uCum.DieMachine);
+        var cumTotal = QuantityMath.Whole(cumGas + cumDie);
+
+        var remainGas = gasLim > cumGas ? QuantityMath.Whole(gasLim - cumGas) : 0;
+        var remainDie = dieLim > cumDie ? QuantityMath.Whole(dieLim - cumDie) : 0;
+        var remainTotal = limTotal > cumTotal ? QuantityMath.Whole(limTotal - cumTotal) : 0;
+
+        var excessGas = cumGas > gasLim ? QuantityMath.Whole(cumGas - gasLim) : 0;
+        var excessDie = cumDie > dieLim ? QuantityMath.Whole(cumDie - dieLim) : 0;
+        var excessTotal = cumTotal > limTotal ? QuantityMath.Whole(cumTotal - limTotal) : 0;
+
         return new QuotaRow(
             Stt: stt,
             Name: name,
@@ -151,20 +192,26 @@ public sealed class QuotaBook
             GasolineLimit: NullZ(gasLim),
             DieselLimit: NullZ(dieLim),
             LimitTotal: NullZ(limTotal),
-            GasolineKm: NullZ(u.GasKm),
-            GasolineHours: NullZ(u.GasHours),
-            DieselKm: NullZ(u.DieKm),
-            DieselHours: NullZ(u.DieHours),
-            GasolineVehicle: NullZ(u.GasVehicle),
-            GasolineMachine: NullZ(u.GasMachine),
-            GasolineFuelTotal: NullZ(gasFuel),
-            DieselVehicle: NullZ(u.DieVehicle),
-            DieselMachine: NullZ(u.DieMachine),
-            DieselFuelTotal: NullZ(dieFuel),
-            FuelTotal: NullZ(fuelTotal),
-            Cumulative: null,
-            Remaining: NullZ(remain),
-            Excess: NullZ(over));
+            GasolineKm: NullZ(uQ.GasKm),
+            GasolineHours: NullZ(uQ.GasHours),
+            DieselKm: NullZ(uQ.DieKm),
+            DieselHours: NullZ(uQ.DieHours),
+            GasolineVehicle: NullZ(uQ.GasVehicle),
+            GasolineMachine: NullZ(uQ.GasMachine),
+            GasolineFuelTotal: NullZ(qGasFuel),
+            DieselVehicle: NullZ(uQ.DieVehicle),
+            DieselMachine: NullZ(uQ.DieMachine),
+            DieselFuelTotal: NullZ(qDieFuel),
+            FuelTotal: NullZ(qFuelTotal),
+            CumGasoline: NullZ(cumGas),
+            CumDiesel: NullZ(cumDie),
+            CumTotal: NullZ(cumTotal),
+            RemainGasoline: NullZ(remainGas),
+            RemainDiesel: NullZ(remainDie),
+            RemainTotal: NullZ(remainTotal),
+            ExcessGasoline: NullZ(excessGas),
+            ExcessDiesel: NullZ(excessDie),
+            ExcessTotal: NullZ(excessTotal));
     }
 
     private static decimal? NullZ(decimal v) => v == 0 ? null : QuantityMath.RoundQty(v);
@@ -399,7 +446,8 @@ public sealed record QuotaSheet(
     NxtLotViewMode LotView,
     DateTime FromDate,
     DateTime ToDate,
-    IReadOnlyList<QuotaRow> Rows);
+    IReadOnlyList<QuotaRow> Rows,
+    DateTime? CumFromDate = null);
 
 public sealed record QuotaRow(
     string Stt,
@@ -420,6 +468,19 @@ public sealed record QuotaRow(
     decimal? DieselMachine,
     decimal? DieselFuelTotal,
     decimal? FuelTotal,
-    decimal? Cumulative,
-    decimal? Remaining,
-    decimal? Excess);
+    decimal? CumGasoline,
+    decimal? CumDiesel,
+    decimal? CumTotal,
+    decimal? RemainGasoline,
+    decimal? RemainDiesel,
+    decimal? RemainTotal,
+    decimal? ExcessGasoline,
+    decimal? ExcessDiesel,
+    decimal? ExcessTotal)
+{
+    // Backwards compatibility properties
+    public decimal? Cumulative => CumTotal;
+    public decimal? Remaining => RemainTotal;
+    public decimal? Excess => ExcessTotal;
+}
+

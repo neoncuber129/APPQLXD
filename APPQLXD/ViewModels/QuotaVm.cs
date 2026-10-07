@@ -60,6 +60,35 @@ public partial class QuotaVm : PageVm
     [RelayCommand] private void ShowIuuView() => LotViewMode = NxtLotViewMode.Iuu;
 
     [RelayCommand]
+    private void ClearLimits()
+    {
+        if (!int.TryParse(Year?.Trim(), out var year))
+        {
+            Fail("Năm không hợp lệ.");
+            return;
+        }
+
+        var viewLabel = LotViewMode == NxtLotViewMode.Iuu ? "IUU" : "TX + SSCĐ";
+        var result = MessageBox.Show(
+            $"Bạn có chắc chắn muốn xóa toàn bộ các ô hạn mức đã điền của năm {year} (bảng {viewLabel}) không?",
+            "Xác nhận xóa hạn mức",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        var r = System.ClearMissionYearLimits(year, LotViewMode);
+        if (!r.Ok)
+        {
+            Fail(r.Message);
+            return;
+        }
+
+        Ok($"Đã xóa toàn bộ hạn mức {viewLabel} năm {year}.");
+        Reload(force: true);
+    }
+
+    [RelayCommand]
     private async Task ExportExcel()
     {
         try
@@ -137,7 +166,7 @@ public partial class QuotaVm : PageVm
             var sheet = System.GetQuotaSheet(year, quarter, LotViewMode);
             var viewLabel = LotViewMode == NxtLotViewMode.Iuu ? "IUU" : "TX + SSCĐ";
             PeriodLabel =
-                $"Kỳ: {sheet.FromDate:dd/MM/yyyy} – {sheet.ToDate:dd/MM/yyyy} · {viewLabel}";
+                $"Quý {quarter}: {sheet.FromDate:dd/MM/yyyy} – {sheet.ToDate:dd/MM/yyyy} (Lũy tích từ 01/01/{year}) · {viewLabel}";
             Rows.Clear();
             foreach (var r in sheet.Rows)
                 Rows.Add(QuotaRowVm.From(r, year, SaveLimit));
@@ -212,9 +241,23 @@ public partial class QuotaRowVm : ObservableObject
     public string DieselMachine { get; init; } = "";
     public string DieselFuelTotal { get; init; } = "";
     public string FuelTotal { get; init; } = "";
-    public string Cumulative { get; init; } = "";
-    public string Remaining { get; init; } = "";
-    public string Excess { get; init; } = "";
+
+    public string CumGasoline { get; init; } = "";
+    public string CumDiesel { get; init; } = "";
+    public string CumTotal { get; init; } = "";
+
+    public string RemainGasoline { get; init; } = "";
+    public string RemainDiesel { get; init; } = "";
+    public string RemainTotal { get; init; } = "";
+
+    public string ExcessGasoline { get; init; } = "";
+    public string ExcessDiesel { get; init; } = "";
+    public string ExcessTotal { get; init; } = "";
+
+    // Backwards-compatible aliases
+    public string Cumulative => CumTotal;
+    public string Remaining => RemainTotal;
+    public string Excess => ExcessTotal;
 
     partial void OnGasolineLimitTextChanged(string value)
     {
@@ -248,9 +291,15 @@ public partial class QuotaRowVm : ObservableObject
             DieselMachine = Fmt(row.DieselMachine),
             DieselFuelTotal = Fmt(row.DieselFuelTotal),
             FuelTotal = Fmt(row.FuelTotal),
-            Cumulative = Fmt(row.Cumulative),
-            Remaining = Fmt(row.Remaining),
-            Excess = Fmt(row.Excess)
+            CumGasoline = Fmt(row.CumGasoline),
+            CumDiesel = Fmt(row.CumDiesel),
+            CumTotal = Fmt(row.CumTotal),
+            RemainGasoline = Fmt(row.RemainGasoline),
+            RemainDiesel = Fmt(row.RemainDiesel),
+            RemainTotal = Fmt(row.RemainTotal),
+            ExcessGasoline = Fmt(row.ExcessGasoline),
+            ExcessDiesel = Fmt(row.ExcessDiesel),
+            ExcessTotal = Fmt(row.ExcessTotal)
         };
         vm._suppress = true;
         vm.GasolineLimitText = Fmt(row.GasolineLimit);

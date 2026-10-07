@@ -17,7 +17,7 @@ public sealed class NxtBook(Func<AppDbContext> factory)
         var start = new DateTime(year, (quarter - 1) * 3 + 1, 1);
         var end = start.AddMonths(3).AddDays(-1);
         var selected = warehouseIds.ToHashSet();
-        var (documents, items, lots) = Load(end, selected);
+        var (documents, items, lots, _) = Load(end, selected);
 
         var fuels = new Dictionary<string, FuelCol>(StringComparer.Ordinal);
         var opening = new Dictionary<string, decimal>(StringComparer.Ordinal);
@@ -136,6 +136,14 @@ public sealed class NxtBook(Func<AppDbContext> factory)
         NxtLotViewMode lotView = NxtLotViewMode.All) =>
         BuildTotalCore(year, quarter, [warehouseId], lotView, includeTransfers: true);
 
+    public enum NxtWhCategory
+    {
+        Main = 0,
+        Machine = 1,
+        Vehicle = 2,
+        Ship = 3
+    }
+
     private NxtTotalSheet BuildTotalCore(
         int year,
         int quarter,
@@ -149,109 +157,216 @@ public sealed class NxtBook(Func<AppDbContext> factory)
         var start = new DateTime(year, (quarter - 1) * 3 + 1, 1);
         var end = start.AddMonths(3).AddDays(-1);
         var selected = warehouseIds.ToHashSet();
-        var (documents, items, lots) = Load(end, selected);
+        var (documents, items, lots, consumers) = Load(end, selected);
 
         var fuels = new Dictionary<string, FuelCol>(StringComparer.Ordinal);
-        var opening = new Dictionary<string, decimal>(StringComparer.Ordinal);
-        var periodIn = new Dictionary<string, decimal>(StringComparer.Ordinal);
-        var periodOut = new Dictionary<string, decimal>(StringComparer.Ordinal);
-        var convertAdjust = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var opening = new Dictionary<(string Key, NxtWhCategory Cat), decimal>();
+        var periodIn = new Dictionary<(string Key, NxtWhCategory Cat), decimal>();
+        var periodOut = new Dictionary<(string Key, NxtWhCategory Cat), decimal>();
+        var totalIn = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var totalOut = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var convertAdjust = new Dictionary<(string Key, NxtWhCategory Cat), decimal>();
         var convertNoteQty = new Dictionary<string, decimal>(StringComparer.Ordinal);
         var convertNoteCodes = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
+        static void AddTotal(Dictionary<string, decimal> map, string key, decimal qty)
+        {
+            qty = QuantityMath.Whole(qty);
+            if (qty == 0) return;
+            map[key] = QuantityMath.Whole(map.GetValueOrDefault(key) + qty);
+        }
+
         foreach (var doc in documents)
         {
-            // NXT tổng kho lớn: bỏ ĐC nội bộ. NXT từng kho: tính ĐC vào/ra kho.
-            if (!includeTransfers && doc.Kind == DocumentKind.Transfer)
-                continue;
+            var isOpeningDoc = doc.Kind == DocumentKind.Opening;
+            var isBeforeStart = doc.DocumentDate.Date < start;
+            var isWithinQuarter = doc.DocumentDate.Date >= start && doc.DocumentDate.Date <= end;
 
-            var effect = Effects(doc, selected, items, lots, fuels, FuelKeyMode.ItemPrice, lotView);
-            if (effect.Count == 0)
-                continue;
-
-            if (doc.Kind == DocumentKind.Opening)
+            foreach (var line in doc.Lines)
             {
-                if (doc.DocumentDate.Date <= end)
-                    Add(opening, effect);
-                continue;
-            }
+                var fuel = Resolve(line, items, lots, FuelKeyMode.ItemPrice);
+                if (!MatchesLotView(fuel.LotTypeCode, lotView))
+                    continue;
+                fuels.TryAdd(fuel.Key, fuel);
 
-            if (doc.DocumentDate.Date < start)
-            {
-                Add(opening, effect);
-                continue;
-            }
+                var srcSelected = selected.Contains(line.WarehouseId);
+                var srcCat = GetWhCategory(line.WarehouseId, consumers);
+                var qty = QuantityMath.Whole(line.ActualQuantity);
 
-            if (doc.DocumentDate.Date > end)
-                continue;
-
-            // Đổi loại trong kỳ: tồn sau ±qty, không ghi cột nhập/xuất.
-            if (doc.Kind == DocumentKind.LotConvert)
-            {
-                RememberLotConvertNotes(doc, effect, items, lots, convertNoteQty, convertNoteCodes);
-                foreach (var (key, bucket) in effect)
+                if (isOpeningDoc)
                 {
-                    var net = QuantityMath.Whole(bucket.In - bucket.Out);
-                    if (net == 0)
-                        continue;
-                    convertAdjust[key] = QuantityMath.Whole(convertAdjust.GetValueOrDefault(key) + net);
+                    if (doc.DocumentDate.Date <= end && srcSelected)
+                    {
+                        AddCat(opening, fuel.Key, srcCat, qty);
+                    }
+                    continue;
                 }
 
-                continue;
-            }
+                if (isBeforeStart)
+                {
+                    switch (doc.Kind)
+                    {
+                        case DocumentKind.Import:
+                            if (srcSelected) AddCat(opening, fuel.Key, srcCat, qty);
+                            break;
+                        case DocumentKind.Issue:
+                        case DocumentKind.Consumption:
+                        case DocumentKind.Auxiliary:
+                            if (srcSelected) AddCat(opening, fuel.Key, srcCat, -qty);
+                            break;
+                        case DocumentKind.Transfer:
+                            if (srcSelected) AddCat(opening, fuel.Key, srcCat, -qty);
+                            if (doc.DestinationWarehouseId is Guid destWhId && selected.Contains(destWhId))
+                            {
+                                var destCat = GetWhCategory(destWhId, consumers);
+                                var destFuel = ResolveDestination(line, fuel, items, lots, FuelKeyMode.ItemPrice);
+                                if (MatchesLotView(destFuel.LotTypeCode, lotView))
+                                {
+                                    fuels.TryAdd(destFuel.Key, destFuel);
+                                    AddCat(opening, destFuel.Key, destCat, qty);
+                                }
+                            }
+                            break;
+                        case DocumentKind.LotConvert:
+                            if (srcSelected)
+                            {
+                                AddCat(opening, fuel.Key, srcCat, -qty);
+                                var destFuel = ResolveDestination(line, fuel, items, lots, FuelKeyMode.ItemPrice);
+                                if (MatchesLotView(destFuel.LotTypeCode, lotView))
+                                {
+                                    fuels.TryAdd(destFuel.Key, destFuel);
+                                    AddCat(opening, destFuel.Key, srcCat, qty);
+                                }
+                            }
+                            break;
+                    }
+                    continue;
+                }
 
-            foreach (var (key, bucket) in effect)
-            {
-                if (bucket.In != 0)
-                    periodIn[key] = QuantityMath.Whole(periodIn.GetValueOrDefault(key) + bucket.In);
-                if (bucket.Out != 0)
-                    periodOut[key] = QuantityMath.Whole(periodOut.GetValueOrDefault(key) + bucket.Out);
+                if (!isWithinQuarter)
+                    continue;
+
+                // Trong quý:
+                switch (doc.Kind)
+                {
+                    case DocumentKind.Import:
+                        if (srcSelected)
+                        {
+                            AddCat(periodIn, fuel.Key, srcCat, qty);
+                            AddTotal(totalIn, fuel.Key, qty);
+                        }
+                        break;
+                    case DocumentKind.Issue:
+                    case DocumentKind.Consumption:
+                    case DocumentKind.Auxiliary:
+                        if (srcSelected)
+                        {
+                            AddCat(periodOut, fuel.Key, srcCat, qty);
+                            AddTotal(totalOut, fuel.Key, qty);
+                        }
+                        break;
+                    case DocumentKind.Transfer:
+                    {
+                        var dstWhId = doc.DestinationWarehouseId;
+                        var dstSelected = dstWhId is Guid dId && selected.Contains(dId);
+                        FuelCol? destFuel = null;
+                        if (dstSelected)
+                        {
+                            var df = ResolveDestination(line, fuel, items, lots, FuelKeyMode.ItemPrice);
+                            if (MatchesLotView(df.LotTypeCode, lotView))
+                            {
+                                destFuel = df;
+                                fuels.TryAdd(destFuel.Key, destFuel);
+                                var destCat = GetWhCategory(dstWhId!.Value, consumers);
+                                AddCat(periodIn, destFuel.Key, destCat, qty);
+                            }
+                        }
+                        if (srcSelected)
+                        {
+                            AddCat(periodOut, fuel.Key, srcCat, qty);
+                        }
+
+                        // Cột Tổng (toàn đơn vị):
+                        if (srcSelected && !dstSelected)
+                        {
+                            AddTotal(totalOut, fuel.Key, qty);
+                        }
+                        else if (!srcSelected && dstSelected && destFuel != null)
+                        {
+                            AddTotal(totalIn, destFuel.Key, qty);
+                        }
+                        else if (srcSelected && dstSelected && destFuel != null && !string.Equals(destFuel.Key, fuel.Key, StringComparison.Ordinal))
+                        {
+                            // Đổi loại lô qua ĐC nội bộ
+                            AddTotal(totalOut, fuel.Key, qty);
+                            AddTotal(totalIn, destFuel.Key, qty);
+                        }
+                        break;
+                    }
+                    case DocumentKind.LotConvert:
+                        if (srcSelected)
+                        {
+                            var destFuel = ResolveDestination(line, fuel, items, lots, FuelKeyMode.ItemPrice);
+                            fuels.TryAdd(destFuel.Key, destFuel);
+                            AddCat(convertAdjust, fuel.Key, srcCat, -qty);
+                            AddCat(convertAdjust, destFuel.Key, srcCat, qty);
+                            AccrueConvertNote(convertNoteQty, convertNoteCodes, fuel.Key, -qty, destFuel.LotTypeCode);
+                            AccrueConvertNote(convertNoteQty, convertNoteCodes, destFuel.Key, qty, fuel.LotTypeCode);
+                        }
+                        break;
+                }
             }
         }
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (key, qty) in opening)
-        {
-            if (qty != 0)
-                keys.Add(key);
-        }
-
-        foreach (var (key, qty) in periodIn)
-        {
-            if (qty != 0)
-                keys.Add(key);
-        }
-
-        foreach (var (key, qty) in periodOut)
-        {
-            if (qty != 0)
-                keys.Add(key);
-        }
-
-        foreach (var (key, qty) in convertAdjust)
-        {
-            if (qty != 0)
-                keys.Add(key);
-        }
+        foreach (var ((k, _), qty) in opening) if (qty != 0) keys.Add(k);
+        foreach (var ((k, _), qty) in periodIn) if (qty != 0) keys.Add(k);
+        foreach (var ((k, _), qty) in periodOut) if (qty != 0) keys.Add(k);
+        foreach (var ((k, _), qty) in convertAdjust) if (qty != 0) keys.Add(k);
 
         var rows = keys
             .Select(key =>
             {
                 var fuel = fuels[key];
-                var open = opening.GetValueOrDefault(key);
-                var inn = periodIn.GetValueOrDefault(key);
-                var outQty = periodOut.GetValueOrDefault(key);
-                var adjust = convertAdjust.GetValueOrDefault(key);
+                var openMain = opening.GetValueOrDefault((key, NxtWhCategory.Main));
+                var openMach = opening.GetValueOrDefault((key, NxtWhCategory.Machine));
+                var openVeh = opening.GetValueOrDefault((key, NxtWhCategory.Vehicle));
+                var openShip = opening.GetValueOrDefault((key, NxtWhCategory.Ship));
+                var openTotal = QuantityMath.Whole(openMain + openMach + openVeh + openShip);
+
+                var inMain = periodIn.GetValueOrDefault((key, NxtWhCategory.Main));
+                var inMach = periodIn.GetValueOrDefault((key, NxtWhCategory.Machine));
+                var inVeh = periodIn.GetValueOrDefault((key, NxtWhCategory.Vehicle));
+                var inShip = periodIn.GetValueOrDefault((key, NxtWhCategory.Ship));
+                var inTotal = totalIn.GetValueOrDefault(key);
+
+                var outMain = periodOut.GetValueOrDefault((key, NxtWhCategory.Main));
+                var outMach = periodOut.GetValueOrDefault((key, NxtWhCategory.Machine));
+                var outVeh = periodOut.GetValueOrDefault((key, NxtWhCategory.Vehicle));
+                var outShip = periodOut.GetValueOrDefault((key, NxtWhCategory.Ship));
+                var outTotal = totalOut.GetValueOrDefault(key);
+
+                var adjMain = convertAdjust.GetValueOrDefault((key, NxtWhCategory.Main));
+                var adjMach = convertAdjust.GetValueOrDefault((key, NxtWhCategory.Machine));
+                var adjVeh = convertAdjust.GetValueOrDefault((key, NxtWhCategory.Vehicle));
+                var adjShip = convertAdjust.GetValueOrDefault((key, NxtWhCategory.Ship));
+
+                var closeMain = QuantityMath.Whole(openMain + inMain - outMain + adjMain);
+                var closeMach = QuantityMath.Whole(openMach + inMach - outMach + adjMach);
+                var closeVeh = QuantityMath.Whole(openVeh + inVeh - outVeh + adjVeh);
+                var closeShip = QuantityMath.Whole(openShip + inShip - outShip + adjShip);
+                var closeTotal = QuantityMath.Whole(closeMain + closeMach + closeVeh + closeShip);
+
                 return new NxtTotalRow(
                     fuel.GroupName,
                     fuel.Name,
                     fuel.UnitPrice,
                     fuel.LotTypeId,
                     fuel.LotTypeCode,
-                    open,
-                    inn,
-                    outQty,
-                    QuantityMath.Whole(open + inn - outQty + adjust),
+                    openMain, openMach, openVeh, openShip, openTotal,
+                    inMain, inMach, inVeh, inShip, inTotal,
+                    outMain, outMach, outVeh, outShip, outTotal,
+                    closeMain, closeMach, closeVeh, closeShip, closeTotal,
                     Note: FormatConvertNote(
                         convertNoteQty.GetValueOrDefault(key),
                         convertNoteCodes.TryGetValue(key, out var codes) ? codes : null));
@@ -266,13 +381,40 @@ public sealed class NxtBook(Func<AppDbContext> factory)
         return new NxtTotalSheet(rows);
     }
 
-    private (List<NxtDoc> Documents, Dictionary<Guid, FuelItem> Items, Dictionary<Guid, Lot> Lots) Load(
+    private static NxtWhCategory GetWhCategory(Guid warehouseId, Dictionary<Guid, ConsumerType> consumers)
+    {
+        if (consumers.TryGetValue(warehouseId, out var type))
+        {
+            return type switch
+            {
+                ConsumerType.Machine => NxtWhCategory.Machine,
+                ConsumerType.Vehicle => NxtWhCategory.Vehicle,
+                ConsumerType.Ship => NxtWhCategory.Ship,
+                _ => NxtWhCategory.Main
+            };
+        }
+        return NxtWhCategory.Main;
+    }
+
+    private static void AddCat(
+        Dictionary<(string Key, NxtWhCategory Cat), decimal> map,
+        string key,
+        NxtWhCategory cat,
+        decimal qty)
+    {
+        qty = QuantityMath.Whole(qty);
+        if (qty == 0) return;
+        map[(key, cat)] = QuantityMath.Whole(map.GetValueOrDefault((key, cat)) + qty);
+    }
+
+    private (List<NxtDoc> Documents, Dictionary<Guid, FuelItem> Items, Dictionary<Guid, Lot> Lots, Dictionary<Guid, ConsumerType> Consumers) Load(
         DateTime end,
         HashSet<Guid> warehouseIds)
     {
         using var db = factory();
         var items = db.FuelItems.AsNoTracking().Include(x => x.Group).ToDictionary(x => x.Id);
         var lots = db.Lots.AsNoTracking().Include(x => x.LotType).ToDictionary(x => x.Id);
+        var consumers = db.Consumers.AsNoTracking().ToDictionary(x => x.Id, x => x.Type);
         var endExclusive = end.AddDays(1);
         var selected = warehouseIds.ToList();
         var flat = (
@@ -312,7 +454,7 @@ public sealed class NxtBook(Func<AppDbContext> factory)
                     x.LotId, x.ItemId, x.ItemName, x.UnitPrice, x.WarehouseId, x.ActualQuantity,
                     x.LotTypeId, x.LotTypeCode ?? "", x.DestinationLotTypeId, x.DestinationLotTypeCode ?? "")).ToList());
         }).ToList();
-        return (documents, items, lots);
+        return (documents, items, lots, consumers);
     }
 
     private static List<Col> Columns(Dictionary<string, FuelCol> fuels, HashSet<string> used)

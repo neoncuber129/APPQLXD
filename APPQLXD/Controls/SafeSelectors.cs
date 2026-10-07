@@ -661,6 +661,55 @@ public static class SheetColumns
         return column;
     }
 
+    public static DataGridTemplateColumn LotOriginColumn(IEnumerable lotOrigins, string header = "Nguồn gốc")
+    {
+        var display = new DataTemplate();
+        var text = new FrameworkElementFactory(typeof(TextBlock));
+        text.SetBinding(TextBlock.TextProperty, new Binding("OriginName"));
+        text.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        text.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        text.SetValue(TextBlock.TextAlignmentProperty, TextAlignment.Center);
+        text.SetBinding(TextBlock.ForegroundProperty, new Binding("(TextElement.Foreground)")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(DataGridRow), 1)
+        });
+        display.VisualTree = text;
+
+        var edit = new DataTemplate();
+        var combo = new FrameworkElementFactory(typeof(SafeComboBox));
+        combo.SetValue(ItemsControl.ItemsSourceProperty, lotOrigins);
+        combo.SetValue(ItemsControl.DisplayMemberPathProperty, "Name");
+        combo.SetValue(ComboBox.IsEditableProperty, false);
+        combo.SetValue(ComboBox.IsTextSearchEnabledProperty, false);
+        combo.SetValue(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Center);
+        combo.SetValue(Control.VerticalContentAlignmentProperty, VerticalAlignment.Center);
+        combo.SetBinding(Selector.SelectedItemProperty, new Binding("OriginOption") { UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
+        combo.SetValue(Control.BorderThicknessProperty, new Thickness(0));
+        combo.SetValue(Control.BackgroundProperty, Brushes.Transparent);
+        combo.SetBinding(UIElement.IsEnabledProperty, new Binding("OriginLocked") { Converter = new InverseBoolConverter() });
+        edit.VisualTree = combo;
+
+        var column = new DataGridTemplateColumn
+        {
+            Header = header,
+            Width = 96,
+            CellTemplate = display,
+            CellEditingTemplate = edit
+        };
+        var style = new Style(typeof(DataGridCell));
+        var locked = new DataTrigger { Binding = new Binding("OriginLocked"), Value = true };
+        locked.Setters.Add(new Setter(DataGridCell.IsEnabledProperty, false));
+        var total = new DataTrigger { Binding = new Binding("IsGroupTotal"), Value = true };
+        total.Setters.Add(new Setter(DataGridCell.IsEnabledProperty, false));
+        var sheetHeader = new DataTrigger { Binding = new Binding("IsSheetHeader"), Value = true };
+        sheetHeader.Setters.Add(new Setter(DataGridCell.IsEnabledProperty, false));
+        style.Triggers.Add(locked);
+        style.Triggers.Add(total);
+        style.Triggers.Add(sheetHeader);
+        column.CellStyle = style;
+        return column;
+    }
+
     public static DataGridTemplateColumn OpeningItemColumn(IEnumerable items, string header = "Mặt hàng")
     {
         var display = new DataTemplate();

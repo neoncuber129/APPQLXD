@@ -24,6 +24,8 @@ public static class SeedIds
     public static readonly Guid LotTypeTx = Guid.Parse("14141414-1414-1414-1414-141414141414");
     public static readonly Guid LotTypeSscd = Guid.Parse("15151515-1515-1515-1515-151515151515");
     public static readonly Guid LotTypeIuu = Guid.Parse("16161616-1616-1616-1616-161616161616");
+    public static readonly Guid LotOriginTuMua = Guid.Parse("19191919-1919-1919-1919-191919191901");
+    public static readonly Guid LotOriginTrenCap = Guid.Parse("19191919-1919-1919-1919-191919191902");
 
     // Nhiệm vụ — nhóm
     public static readonly Guid MissionGroupStaff = Guid.Parse("17171717-1717-1717-1717-171717171701");

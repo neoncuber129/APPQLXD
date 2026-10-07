@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
     <DockPanel Margin="16">
         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,12"
-                   Text="Chọn mặt hàng, đơn giá và loại lô. Sau khi thêm, nhập số lượng tồn theo từng kho trên bảng."/>
+                   Text="Chọn mặt hàng, đơn giá, loại lô và nguồn gốc. Sau khi thêm, nhập số lượng tồn theo từng kho trên bảng."/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Hủy" Style="{StaticResource Ghost}" Width="90" IsCancel="True" Click="CancelClick"/>
             <Button Content="Thêm" Style="{StaticResource Primary}" Width="90" Margin="8,0,0,0" IsDefault="True" Click="OkClick"/>
@@ -21,6 +21,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Mặt hàng" VerticalAlignment="Center" Margin="0,0,12,10" Foreground="{StaticResource Muted}"/>
             <ui:GroupedItemCombo x:Name="ItemCombo" Grid.Row="0" Grid.Column="1" Margin="0,0,0,10" Height="32"/>
@@ -29,7 +30,9 @@
                      Style="{StaticResource NumericMoneyBox}"/>
             <TextBlock Grid.Row="2" Grid.Column="0" Text="Loại lô" VerticalAlignment="Center" Margin="0,0,12,10" Foreground="{StaticResource Muted}"/>
             <ui:SafeComboBox x:Name="LotTypeCombo" Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" Height="32" DisplayMemberPath="Code"/>
-            <TextBlock x:Name="ErrorText" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Foreground="#9E2A2B" TextWrapping="Wrap"/>
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Nguồn gốc" VerticalAlignment="Center" Margin="0,0,12,10" Foreground="{StaticResource Muted}"/>
+            <ui:SafeComboBox x:Name="LotOriginCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" Height="32" DisplayMemberPath="Name"/>
+            <TextBlock x:Name="ErrorText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Foreground="#9E2A2B" TextWrapping="Wrap"/>
         </Grid>
     </DockPanel>
 </Window>

@@ -1,45 +1,69 @@
-## Visual Studio & IDEs
+# .NET / Visual Studio
 .vs/
-.vscode/
+[Bb]in/
+[Oo]bj/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
-*.ide/
+*.db-shm
+*.db-wal
 
-## Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
-publish/
-temp_p.json
-Installer/out/
-**/Installer/out/
-Installer/payload/
-**/Installer/payload/
-*.exe
-*.dll
-*.rar
-*.wixpdb
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
 
-## .NET Core
-project.lock.json
-project.fragment.lock.json
-artifacts/
+# Generated files
+.packages
+.pub-preload/
+*.lock
 
-## OS generated files
+# Android
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/app/build/
+
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Xcode
+**/ios/.idea/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# macOS
 .DS_Store
-Thumbs.db
-ehthumbs.db
-desktop.ini
 
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Secrets / signing
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.jks
+*.keystore
+key.properties
+GoogleService-Info.plist

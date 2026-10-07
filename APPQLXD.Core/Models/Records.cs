@@ -6,6 +6,7 @@ namespace APPQLXD.Core.Models;
 public sealed record FuelResult(bool Ok, string Message, Guid? Id = null)
 {
     public static FuelResult Success(Guid id, string message = "Đã lưu.") => new(true, message, id);
+    public static FuelResult Success(string message = "Thành công.") => new(true, message, null);
     public static FuelResult Fail(string message) => new(false, message);
 }
 
@@ -101,6 +102,7 @@ public sealed class OpeningRequest
     public string MeasurementNote { get; init; } = "";
     public decimal UnitPrice { get; init; }
     public Guid? LotTypeId { get; init; }
+    public string Origin { get; init; } = "Tự mua";
     public decimal ActualQuantity { get; init; }
 }
 
@@ -129,6 +131,7 @@ public sealed class ImportRequest
     public decimal Vcf { get; init; }
     public decimal UnitPrice { get; init; }
     public Guid? LotTypeId { get; init; }
+    public string Origin { get; init; } = "Tự mua";
     public decimal InputQuantity { get; init; }
     public decimal? Amount { get; init; }
     public IReadOnlyList<FieldInput> Fields { get; init; } = [];
@@ -188,6 +191,7 @@ public sealed class ConsumptionCellRequest
     public string ItemName { get; init; } = "";
     public decimal UnitPrice { get; init; }
     public Guid? LotTypeId { get; init; }
+    public string Origin { get; init; } = "Tự mua";
     public decimal ActualQuantity { get; init; }
     public decimal? OperatingQuantity { get; init; }
     public decimal? Norm { get; init; }
@@ -213,6 +217,7 @@ public sealed class AuxiliaryCellRequest
     public string ItemName { get; init; } = "";
     public decimal UnitPrice { get; init; }
     public Guid? LotTypeId { get; init; }
+    public string Origin { get; init; } = "Tự mua";
     public decimal ActualQuantity { get; init; }
     public decimal Vcf { get; init; }
 }
@@ -241,6 +246,7 @@ public sealed class AuxiliaryRequest
 public sealed record GroupRow(Guid Id, string Name, WarehouseScope Scope = WarehouseScope.Xd);
 public sealed record UnitRow(Guid Id, string Name);
 public sealed record LotTypeRow(Guid Id, string Code, string Name, int SortOrder, bool IsActive);
+public sealed record LotOriginRow(Guid Id, string Name, int SortOrder, bool IsActive);
 
 public sealed record MissionGroupRow(Guid Id, string Code, string Name, int SortOrder, bool IsLossGroup, int TaskCount);
 public sealed record MissionTaskRow(Guid Id, Guid GroupId, string GroupCode, string GroupName, string Name, int SortOrder, bool IsActive)
@@ -520,7 +526,8 @@ public sealed record LotOption(
     decimal Quantity,
     decimal FirstVcf,
     string Display,
-    string GroupName = "");
+    string GroupName = "",
+    string Origin = "Tự mua");
 
 public sealed record StockFilter(
     Guid? WarehouseId,
@@ -541,7 +548,8 @@ public sealed record StockRow(
     long UnitPrice,
     Guid LotTypeId,
     string LotTypeCode,
-    decimal Quantity);
+    decimal Quantity,
+    string Origin = "Tự mua");
 
 public enum NxtRowKind
 {
@@ -578,19 +586,66 @@ public sealed record NxtRow(
 
 public sealed record NxtSheet(IReadOnlyList<NxtColumn> Columns, IReadOnlyList<NxtRow> Rows);
 
-/// <summary>Một dòng NXT tổng: mặt hàng + đơn giá + loại lô trong kho lớn (mọi kho), bỏ điều chuyển nội bộ.</summary>
+/// <summary>Một dòng NXT tổng: mặt hàng + đơn giá + loại lô tách theo Kho hải đoàn, Máy, Phương tiện, Tàu và Tổng.</summary>
 public sealed record NxtTotalRow(
     string GroupName,
     string ItemName,
     long UnitPrice,
     Guid LotTypeId,
     string LotTypeCode,
-    decimal Opening,
-    decimal In,
-    decimal Out,
-    decimal Closing,
+    // Tồn đầu
+    decimal OpeningMain,
+    decimal OpeningMachine,
+    decimal OpeningVehicle,
+    decimal OpeningShip,
+    decimal OpeningTotal,
+    // Nhập
+    decimal InMain,
+    decimal InMachine,
+    decimal InVehicle,
+    decimal InShip,
+    decimal InTotal,
+    // Xuất
+    decimal OutMain,
+    decimal OutMachine,
+    decimal OutVehicle,
+    decimal OutShip,
+    decimal OutTotal,
+    // Tồn sau
+    decimal ClosingMain,
+    decimal ClosingMachine,
+    decimal ClosingVehicle,
+    decimal ClosingShip,
+    decimal ClosingTotal,
     bool IsGroupTotal = false,
-    string Note = "");
+    string Note = "")
+{
+    public NxtTotalRow(
+        string groupName,
+        string itemName,
+        long unitPrice,
+        Guid lotTypeId,
+        string lotTypeCode,
+        decimal opening,
+        decimal @in,
+        decimal @out,
+        decimal closing,
+        bool isGroupTotal = false,
+        string note = "")
+        : this(groupName, itemName, unitPrice, lotTypeId, lotTypeCode,
+            opening, 0, 0, 0, opening,
+            @in, 0, 0, 0, @in,
+            @out, 0, 0, 0, @out,
+            closing, 0, 0, 0, closing,
+            isGroupTotal, note)
+    {
+    }
+
+    public decimal Opening => OpeningTotal;
+    public decimal In => InTotal;
+    public decimal Out => OutTotal;
+    public decimal Closing => ClosingTotal;
+}
 
 public sealed record NxtTotalSheet(IReadOnlyList<NxtTotalRow> Rows);
 
@@ -604,7 +659,8 @@ public sealed record MovementRow(
     long UnitPrice,
     Guid LotTypeId,
     string LotTypeCode,
-    decimal SignedQuantity);
+    decimal SignedQuantity,
+    string Origin = "Tự mua");
 
 public sealed record SheetHeader(
     Guid Id,
@@ -623,6 +679,7 @@ public sealed record SheetHeader(
     long UnitPrice,
     Guid? LotTypeId,
     string LotTypeCode,
+    string Origin,
     decimal ActualQuantity,
     decimal? Distance,
     Guid? ConsumerId = null,
@@ -655,7 +712,8 @@ public sealed record DocumentRow(
     string Kilometers,
     string Mission,
     string DisplayNumber,
-    decimal? Distance);
+    decimal? Distance,
+    string Origin = "Tự mua");
 
 public sealed record LineRow(
     int LineNo,
@@ -675,7 +733,8 @@ public sealed record LineRow(
     string QualityGrade,
     decimal? Temperature,
     decimal? Density,
-    decimal Vcf);
+    decimal Vcf,
+    string Origin = "Tự mua");
 
 public sealed record FieldSnapshotRow(string Name, string DataType, bool IsRequired, string Value);
 
@@ -720,7 +779,8 @@ public sealed record DocumentDetail(
     bool WasSplit,
     IReadOnlyList<LineRow> Lines,
     IReadOnlyList<FieldSnapshotRow> Fields,
-    SlipInfo Slip);
+    SlipInfo Slip,
+    string Origin = "Tự mua");
 
 public sealed record SlipInfo(
     string FormNumber,
@@ -769,6 +829,7 @@ public sealed class SlipLineInput
     public decimal? ActualQuantity { get; init; }
     public decimal UnitPrice { get; init; }
     public Guid? LotTypeId { get; init; }
+    public string Origin { get; init; } = "Tự mua";
     /// <summary>Điều chuyển: loại lô tại kho nhận (null = giữ loại nguồn).</summary>
     public Guid? DestinationLotTypeId { get; init; }
     public decimal? Amount { get; init; }

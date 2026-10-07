@@ -70,10 +70,37 @@ public static class NxtExportMapper
                 ["$Ten"] = r.IsGroupTotal ? $"Tổng {r.GroupName}" : r.ItemName,
                 ["$Gia"] = r.IsGroupTotal ? "" : ExportNumberFormat.Money(r.UnitPrice),
                 ["$LLo"] = r.LotTypeCode,
-                ["$TonDau"] = ExportNumberFormat.Qty(r.Opening),
-                ["$Nhap"] = ExportNumberFormat.Qty(r.In),
-                ["$Xuat"] = ExportNumberFormat.Qty(r.Out),
-                ["$TCuoi"] = ExportNumberFormat.Qty(r.Closing),
+
+                ["$TonDau_Kho"] = ExportNumberFormat.Qty(r.OpeningMain),
+                ["$TonDau_May"] = ExportNumberFormat.Qty(r.OpeningMachine),
+                ["$TonDau_Xe"] = ExportNumberFormat.Qty(r.OpeningVehicle),
+                ["$TonDau_Tau"] = ExportNumberFormat.Qty(r.OpeningShip),
+                ["$TonDau"] = ExportNumberFormat.Qty(r.OpeningTotal),
+
+                ["$Nhap_Kho"] = ExportNumberFormat.Qty(r.InMain),
+                ["$Nhap_May"] = ExportNumberFormat.Qty(r.InMachine),
+                ["$Nhap_Xe"] = ExportNumberFormat.Qty(r.InVehicle),
+                ["$Nhap_Tau"] = ExportNumberFormat.Qty(r.InShip),
+                ["$Nhap"] = ExportNumberFormat.Qty(r.InTotal),
+
+                ["$Xuat_Kho"] = ExportNumberFormat.Qty(r.OutMain),
+                ["$Xuat_May"] = ExportNumberFormat.Qty(r.OutMachine),
+                ["$Xuat_Xe"] = ExportNumberFormat.Qty(r.OutVehicle),
+                ["$Xuat_Tau"] = ExportNumberFormat.Qty(r.OutShip),
+                ["$Xuat"] = ExportNumberFormat.Qty(r.OutTotal),
+
+                ["$TCuoi_Kho"] = ExportNumberFormat.Qty(r.ClosingMain),
+                ["$TCuoi_May"] = ExportNumberFormat.Qty(r.ClosingMachine),
+                ["$TCuoi_Xe"] = ExportNumberFormat.Qty(r.ClosingVehicle),
+                ["$TCuoi_Tau"] = ExportNumberFormat.Qty(r.ClosingShip),
+                ["$TCuoi"] = ExportNumberFormat.Qty(r.ClosingTotal),
+
+                ["$TonCuoi_Kho"] = ExportNumberFormat.Qty(r.ClosingMain),
+                ["$TonCuoi_May"] = ExportNumberFormat.Qty(r.ClosingMachine),
+                ["$TonCuoi_Xe"] = ExportNumberFormat.Qty(r.ClosingVehicle),
+                ["$TonCuoi_Tau"] = ExportNumberFormat.Qty(r.ClosingShip),
+                ["$TonCuoi"] = ExportNumberFormat.Qty(r.ClosingTotal),
+
                 ["$GC"] = r.Note
             });
             i++;
@@ -244,17 +271,37 @@ public static class NxtExcelWriter
             var wsPart = wbPart.AddNewPart<WorksheetPart>();
             var sheetData = new SheetData();
 
-            sheetData.AppendChild(StyledRow(1, StyleTitle, Abs(0, 7, $"NXT tổng năm {year} quý {quarter} — {warehouseLabel}")));
+            sheetData.AppendChild(StyledRow(1, StyleTitle, Abs(0, 23, $"NXT tổng năm {year} quý {quarter} — {warehouseLabel}")));
             var merges = new MergeCells();
-            merges.AppendChild(new MergeCell { Reference = "A1:H1" });
+            merges.AppendChild(new MergeCell { Reference = "A1:X1" });
+            merges.AppendChild(new MergeCell { Reference = "A2:A3" });
+            merges.AppendChild(new MergeCell { Reference = "B2:B3" });
+            merges.AppendChild(new MergeCell { Reference = "C2:C3" });
+            merges.AppendChild(new MergeCell { Reference = "D2:H2" });
+            merges.AppendChild(new MergeCell { Reference = "I2:M2" });
+            merges.AppendChild(new MergeCell { Reference = "N2:R2" });
+            merges.AppendChild(new MergeCell { Reference = "S2:W2" });
+            merges.AppendChild(new MergeCell { Reference = "X2:X3" });
 
-            // Khớp cột UI: Lô | Đơn giá | Loại lô | Tồn đầu | Nhập | Xuất | Tồn sau | Ghi chú
+            // Hàng 2: Tiêu đề tầng 1
             sheetData.AppendChild(StyledRow(2, StyleHead,
                 ("Lô", StyleHead), ("Đơn giá", StyleHead), ("Loại lô", StyleHead),
-                ("Tồn đầu", StyleHead), ("Nhập", StyleHead), ("Xuất", StyleHead),
-                ("Tồn sau", StyleHead), ("Ghi chú", StyleHead)));
+                ("Tồn đầu", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead),
+                ("Nhập", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead),
+                ("Xuất", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead),
+                ("Tồn sau", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead), ("", StyleHead),
+                ("Ghi chú", StyleHead)));
 
-            uint rowIndex = 3;
+            // Hàng 3: Tiêu đề tầng 2
+            sheetData.AppendChild(StyledRow(3, StyleHead,
+                ("", StyleHead), ("", StyleHead), ("", StyleHead),
+                ("Kho HĐ", StyleHead), ("Máy", StyleHead), ("PT", StyleHead), ("Tàu", StyleHead), ("Tổng", StyleHead),
+                ("Kho HĐ", StyleHead), ("Máy", StyleHead), ("PT", StyleHead), ("Tàu", StyleHead), ("Tổng", StyleHead),
+                ("Kho HĐ", StyleHead), ("Máy", StyleHead), ("PT", StyleHead), ("Tàu", StyleHead), ("Tổng", StyleHead),
+                ("Kho HĐ", StyleHead), ("Máy", StyleHead), ("PT", StyleHead), ("Tàu", StyleHead), ("Tổng", StyleHead),
+                ("", StyleHead)));
+
+            uint rowIndex = 4;
             foreach (var group in sheet.Rows.GroupBy(x => x.GroupName, StringComparer.Ordinal))
             {
                 var members = group.ToList();
@@ -266,10 +313,26 @@ public static class NxtExcelWriter
                     (label, TotalStyle(color, header: true)),
                     ("", TotalStyle(color, header: true)),
                     ("", TotalStyle(color, header: true)),
-                    (Qty(members.Sum(x => x.Opening)), TotalStyle(color, header: true)),
-                    (Qty(members.Sum(x => x.In)), TotalStyle(color, header: true)),
-                    (Qty(members.Sum(x => x.Out)), TotalStyle(color, header: true)),
-                    (Qty(members.Sum(x => x.Closing)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OpeningMain)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OpeningMachine)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OpeningVehicle)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OpeningShip)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OpeningTotal)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.InMain)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.InMachine)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.InVehicle)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.InShip)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.InTotal)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OutMain)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OutMachine)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OutVehicle)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OutShip)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.OutTotal)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.ClosingMain)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.ClosingMachine)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.ClosingVehicle)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.ClosingShip)), TotalStyle(color, header: true)),
+                    (Qty(members.Sum(x => x.ClosingTotal)), TotalStyle(color, header: true)),
                     ("", TotalStyle(color, header: true))));
 
                 foreach (var typeGroup in members
@@ -282,10 +345,26 @@ public static class NxtExcelWriter
                         ($"  {typeGroup.Key}", TotalStyle(color, sub: true)),
                         ("", TotalStyle(color, sub: true)),
                         (typeGroup.Key, TotalStyle(color, sub: true)),
-                        (Qty(typeMembers.Sum(x => x.Opening)), TotalStyle(color, sub: true)),
-                        (Qty(typeMembers.Sum(x => x.In)), TotalStyle(color, sub: true)),
-                        (Qty(typeMembers.Sum(x => x.Out)), TotalStyle(color, sub: true)),
-                        (Qty(typeMembers.Sum(x => x.Closing)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OpeningMain)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OpeningMachine)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OpeningVehicle)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OpeningShip)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OpeningTotal)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.InMain)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.InMachine)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.InVehicle)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.InShip)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.InTotal)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OutMain)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OutMachine)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OutVehicle)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OutShip)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.OutTotal)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.ClosingMain)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.ClosingMachine)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.ClosingVehicle)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.ClosingShip)), TotalStyle(color, sub: true)),
+                        (Qty(typeMembers.Sum(x => x.ClosingTotal)), TotalStyle(color, sub: true)),
                         ("", TotalStyle(color, sub: true))));
 
                     foreach (var r in typeMembers)
@@ -294,19 +373,43 @@ public static class NxtExcelWriter
                             (r.ItemName, TotalStyle(color, item: true)),
                             (r.UnitPrice > 0 ? r.UnitPrice.ToString("N0", Vi) : "", TotalStyle(color, item: true)),
                             (r.LotTypeCode, TotalStyle(color, item: true)),
-                            (Qty(r.Opening), TotalStyle(color, item: true)),
-                            (Qty(r.In), TotalStyle(color, item: true)),
-                            (Qty(r.Out), TotalStyle(color, item: true)),
-                            (Qty(r.Closing), TotalStyle(color, item: true)),
+                            (Qty(r.OpeningMain), TotalStyle(color, item: true)),
+                            (Qty(r.OpeningMachine), TotalStyle(color, item: true)),
+                            (Qty(r.OpeningVehicle), TotalStyle(color, item: true)),
+                            (Qty(r.OpeningShip), TotalStyle(color, item: true)),
+                            (Qty(r.OpeningTotal), TotalStyle(color, item: true)),
+                            (Qty(r.InMain), TotalStyle(color, item: true)),
+                            (Qty(r.InMachine), TotalStyle(color, item: true)),
+                            (Qty(r.InVehicle), TotalStyle(color, item: true)),
+                            (Qty(r.InShip), TotalStyle(color, item: true)),
+                            (Qty(r.InTotal), TotalStyle(color, item: true)),
+                            (Qty(r.OutMain), TotalStyle(color, item: true)),
+                            (Qty(r.OutMachine), TotalStyle(color, item: true)),
+                            (Qty(r.OutVehicle), TotalStyle(color, item: true)),
+                            (Qty(r.OutShip), TotalStyle(color, item: true)),
+                            (Qty(r.OutTotal), TotalStyle(color, item: true)),
+                            (Qty(r.ClosingMain), TotalStyle(color, item: true)),
+                            (Qty(r.ClosingMachine), TotalStyle(color, item: true)),
+                            (Qty(r.ClosingVehicle), TotalStyle(color, item: true)),
+                            (Qty(r.ClosingShip), TotalStyle(color, item: true)),
+                            (Qty(r.ClosingTotal), TotalStyle(color, item: true)),
                             (r.Note ?? "", TotalStyle(color, item: true))));
                     }
                 }
             }
 
             var worksheet = new Worksheet();
-            worksheet.AppendChild(new Columns(
-                ColWidth(1, 28), ColWidth(2, 14), ColWidth(3, 10),
-                ColWidth(4, 12), ColWidth(5, 12), ColWidth(6, 12), ColWidth(7, 12), ColWidth(8, 22)));
+            var colsList = new List<OpenXmlElement>
+            {
+                ColWidth(1, 26),
+                ColWidth(2, 12),
+                ColWidth(3, 10)
+            };
+            for (uint col = 4; col <= 23; col++)
+                colsList.Add(ColWidth(col, 11));
+            colsList.Add(ColWidth(24, 20));
+
+            worksheet.AppendChild(new Columns(colsList));
             worksheet.AppendChild(sheetData);
             merges.Count = (uint)merges.ChildElements.Count;
             worksheet.AppendChild(merges);

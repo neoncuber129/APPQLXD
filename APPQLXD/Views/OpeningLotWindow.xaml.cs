@@ -9,19 +9,24 @@ namespace APPQLXD.Views;
 
 public partial class OpeningLotWindow : Window
 {
-    public OpeningLotWindow(IEnumerable items, IEnumerable lotTypes)
+    public OpeningLotWindow(IEnumerable items, IEnumerable lotTypes, IEnumerable lotOrigins)
     {
         InitializeComponent();
         ItemCombo.SourceItems = items;
         LotTypeCombo.ItemsSource = lotTypes;
         LotTypeCombo.SelectedItem = lotTypes.OfType<LotTypeRow>().FirstOrDefault(x => x.Id == SeedIds.LotTypeTx)
                                     ?? lotTypes.OfType<LotTypeRow>().FirstOrDefault();
+        LotOriginCombo.ItemsSource = lotOrigins;
+        LotOriginCombo.SelectedItem = lotOrigins.OfType<LotOriginRow>().FirstOrDefault(x => x.Id == SeedIds.LotOriginTuMua)
+                                      ?? lotOrigins.OfType<LotOriginRow>().FirstOrDefault(x => string.Equals(x.Name, "Tự mua", StringComparison.OrdinalIgnoreCase))
+                                      ?? lotOrigins.OfType<LotOriginRow>().FirstOrDefault();
         PriceBox.Text = "0";
     }
 
     public ItemRow? SelectedItem { get; private set; }
     public string PriceText { get; private set; } = "0";
     public LotTypeRow? SelectedLotType { get; private set; }
+    public LotOriginRow? SelectedLotOrigin { get; private set; }
 
     private void OkClick(object sender, RoutedEventArgs e)
     {
@@ -44,6 +49,13 @@ public partial class OpeningLotWindow : Window
         if (SelectedLotType is null)
         {
             ErrorText.Text = "Chọn loại lô.";
+            return;
+        }
+
+        SelectedLotOrigin = LotOriginCombo.SelectedItem as LotOriginRow;
+        if (SelectedLotOrigin is null)
+        {
+            ErrorText.Text = "Chọn nguồn gốc lô.";
             return;
         }
 

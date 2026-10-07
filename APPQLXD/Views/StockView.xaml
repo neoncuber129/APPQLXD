@@ -41,6 +41,7 @@
                 <DataGridTextColumn Header="ĐVT" Binding="{Binding UnitName}" Width="70"/>
                 <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, StringFormat=N0}" Width="100"/>
                 <DataGridTextColumn Header="Loại lô" Binding="{Binding LotTypeCode}" Width="72"/>
+                <DataGridTextColumn Header="Nguồn gốc" Binding="{Binding Origin}" Width="90"/>
                 <DataGridTextColumn Header="Tồn thực tế" Binding="{Binding Quantity, StringFormat=N0}" Width="120"/>
             </ui:SafeDataGrid.Columns>
         </ui:SafeDataGrid>

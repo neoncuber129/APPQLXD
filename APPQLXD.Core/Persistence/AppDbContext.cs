@@ -13,6 +13,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<ItemGroup> ItemGroups => Set<ItemGroup>();
     public DbSet<MeasureUnit> MeasureUnits => Set<MeasureUnit>();
     public DbSet<LotType> LotTypes => Set<LotType>();
+    public DbSet<LotOrigin> LotOrigins => Set<LotOrigin>();
     public DbSet<FuelItem> FuelItems => Set<FuelItem>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Consumer> Consumers => Set<Consumer>();
@@ -46,6 +47,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<ItemGroup>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<MeasureUnit>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<LotType>().HasIndex(x => x.Code).IsUnique();
+        modelBuilder.Entity<LotOrigin>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<FuelItem>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<FuelItem>().HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<FuelItem>().HasOne(x => x.Unit).WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict);
@@ -70,7 +72,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<FieldDefinition>().HasIndex(x => new { x.Family, x.Name }).IsUnique();
         modelBuilder.Entity<SampleValue>().HasOne(x => x.SampleSet).WithMany(x => x.Values).HasForeignKey(x => x.SampleSetId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<SampleValue>().HasOne(x => x.Field).WithMany().HasForeignKey(x => x.FieldDefinitionId).OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Lot>().HasIndex(x => new { x.ItemNameKey, x.UnitPrice, x.LotTypeId }).IsUnique();
+        modelBuilder.Entity<Lot>().HasIndex(x => new { x.ItemNameKey, x.UnitPrice, x.LotTypeId, x.Origin }).IsUnique();
         modelBuilder.Entity<StockBalance>().HasIndex(x => new { x.LotId, x.WarehouseId }).IsUnique();
         modelBuilder.Entity<StockBalance>().HasOne(x => x.Lot).WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<StockBalance>().HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);

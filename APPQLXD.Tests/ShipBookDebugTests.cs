@@ -128,4 +128,67 @@ public sealed class ShipBookDebugTests(ITestOutputHelper output)
         var line = book.Rows[^1];
         Assert.Equal(expectedOilOut, line.OilOut ?? 0);
     }
+
+    [Fact]
+    public void Ship_quarter_book_preserves_custom_manual_oil()
+    {
+        using var app = TestApp.Create();
+        var date = new DateTime(2026, 9, 30);
+        var oilGroup = app.System.GetGroups().FirstOrDefault(x => x.Name == "Nhớt");
+        var groupId = oilGroup?.Id ?? app.System.SaveGroup(null, "Nhớt").Id!.Value;
+        var itemId = app.System.SaveItem(new ItemEdit
+        {
+            GroupId = groupId,
+            UnitId = SeedIds.UnitLiter,
+            Name = "Dầu nhờn test",
+            Density = 0.9m,
+            Temperature = 30,
+            Vcf = 1m
+        }).Id!.Value;
+
+        Assert.True(app.System.SaveOpening(new OpeningRequest
+        {
+            DocumentDate = new DateTime(2026, 7, 1),
+            WarehouseId = SeedIds.Ship,
+            ItemId = SeedIds.ItemRon95,
+            UnitPrice = 20000m,
+            ActualQuantity = 500m
+        }).Ok);
+
+        Assert.True(app.System.SaveOpening(new OpeningRequest
+        {
+            DocumentDate = new DateTime(2026, 7, 1),
+            WarehouseId = SeedIds.Ship,
+            ItemId = itemId,
+            UnitPrice = 50000m,
+            ActualQuantity = 100m
+        }).Ok);
+
+        // Save with FuelOut = 100 (which normally calculates 4L oil), but manually set OilOut = 15L
+        var saved = app.System.SaveShipQuarterBook(new ShipQuarterBookSaveRequest
+        {
+            ConsumerId = SeedIds.Ship,
+            QuarterDate = date,
+            FuelGroupName = "Xăng",
+            Lines =
+            [
+                new ShipQuarterBookLineEdit
+                {
+                    DocumentNumber = "TT-CUSTOM-OIL",
+                    DocumentDate = new DateTime(2026, 9, 15),
+                    ManualFuelOut = true,
+                    FuelOutManual = 100m,
+                    ManualOilOut = true,
+                    OilOut = 15m
+                }
+            ]
+        });
+        Assert.True(saved.Ok, saved.Message);
+
+        var book = app.System.GetShipQuarterBook(date, SeedIds.Ship);
+        var line = book.Rows[^1];
+        Assert.True(line.ManualOilOut);
+        Assert.Equal(15m, line.OilOut ?? 0);
+    }
 }
+

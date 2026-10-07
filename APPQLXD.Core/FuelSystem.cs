@@ -457,6 +457,9 @@ public sealed class FuelSystem
     public IReadOnlyList<LotTypeRow> GetLotTypes(bool activeOnly = true) => _catalog.GetLotTypes(activeOnly);
     public FuelResult SaveLotType(Guid? id, string code, string name, int? sortOrder = null) => _catalog.SaveLotType(id, code, name, sortOrder);
     public FuelResult DeleteLotType(Guid id) => _catalog.DeleteLotType(id);
+    public IReadOnlyList<LotOriginRow> GetLotOrigins(bool activeOnly = true) => _catalog.GetLotOrigins(activeOnly);
+    public FuelResult SaveLotOrigin(Guid? id, string name, int? sortOrder = null) => _catalog.SaveLotOrigin(id, name, sortOrder);
+    public FuelResult DeleteLotOrigin(Guid id) => _catalog.DeleteLotOrigin(id);
 
     public IReadOnlyList<MissionGroupRow> GetMissionGroups() => _catalog.GetMissionGroups();
     public IReadOnlyList<MissionTaskRow> GetMissionTasks(Guid? groupId = null, bool activeOnly = true) =>
@@ -471,6 +474,8 @@ public sealed class FuelSystem
         _catalog.GetMissionYearLimits(year, lotView);
     public FuelResult SaveMissionYearLimit(Guid taskId, int year, NxtLotViewMode lotView, decimal gasolineLimit, decimal dieselLimit) =>
         _catalog.SaveMissionYearLimit(taskId, year, lotView, gasolineLimit, dieselLimit);
+    public FuelResult ClearMissionYearLimits(int year, NxtLotViewMode lotView) =>
+        _catalog.ClearMissionYearLimits(year, lotView);
     public IReadOnlyList<ItemRow> GetItems() => _catalog.GetItems();
     public ItemRow? GetItem(Guid id) => _catalog.GetItem(id);
     public FuelResult SaveItem(ItemEdit edit) => _catalog.SaveItem(edit);

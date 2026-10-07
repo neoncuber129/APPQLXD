@@ -37,10 +37,11 @@ Các giá trị nhập/xuất mang tính lưu trữ/hiển thị; không thay th
 **ASSUMED: FIXED**
 
 Khóa logic:
-`Tên mặt hàng + Đơn giá`
+`Tên mặt hàng + Đơn giá + Loại lô + Nguồn gốc`
 
-Cùng item + cùng giá => cùng lô logic.
-Cùng item + khác giá => lô khác.
+Cùng item + cùng giá + cùng loại lô + cùng nguồn gốc => cùng lô logic.
+Khác bất kỳ thành phần nào => lô khác.
+Dữ liệu mẫu nguồn gốc gồm: "Tự mua" (mặc định), "Trên cấp".
 
 ## 5. FIFO / chọn lô
 **NEEDS CONFIRMATION**
@@ -107,6 +108,9 @@ Nhóm **Tàu** (dưới Phương tiện trong danh mục kho) có thuộc tính 
 3. **Tổng** định mức hiển thị = cộng tất cả tỷ lệ các dòng (lít khi vận hành = 1).
 4. **Tiêu thụ quý (hiện tại):** nhập **thực xuất trực tiếp** như máy — tỷ lệ định mức **chưa** dùng để tính và **không** validate bắt buộc. Không áp dụng định mức tàu trên phiếu điều chuyển.
 5. (Dự kiến sau) có thể dùng `Thực xuất = Vận hành × Σ tỷ lệ nhóm` khi bật tính theo định mức.
+6. **Sổ tiêu thụ quý (`ShipQuarterBookWindow`):**
+   - Khi chuyển chế độ qua lại giữa thủ công và tự động (chuột phải vào dòng): nếu chuyển từ thủ công sang tự động mà dữ liệu thủ công đang có khác công thức -> bảo lưu nguyên vẹn dữ liệu thủ công đã nhập (`PendingRecalculate = true`), hiển thị icon tính toán lại 🔄 kèm tooltip chi tiết.
+   - Khi người dùng click icon 🔄 hoặc chỉnh sửa bất kỳ ô giờ/số máy nào trong dòng -> tự động áp dụng công thức và xóa icon cảnh báo.
 
 ## 10d. Chế độ kho XD / PTKT
 **ASSUMED: FIXED — TẠM THỜI**

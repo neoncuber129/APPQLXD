@@ -65,7 +65,9 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="Xuất Excel" Style="{StaticResource Ghost}" Margin="16,0,0,0" Padding="12,6"
+                    <Button Content="Xóa hạn mức" Style="{StaticResource Danger}" Margin="16,0,0,0" Padding="12,6"
+                            Command="{Binding ClearLimitsCommand}" ToolTip="Xóa toàn bộ các ô hạn mức đã điền của bảng và năm đang chọn"/>
+                    <Button Content="Xuất Excel" Style="{StaticResource Ghost}" Margin="8,0,0,0" Padding="12,6"
                             Command="{Binding ExportExcelCommand}"/>
                 </StackPanel>
             </DockPanel>

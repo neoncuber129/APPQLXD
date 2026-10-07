@@ -186,7 +186,7 @@
                     </Button>
                 </StackPanel>
                 <TextBlock Style="{StaticResource Hint}" Text="{Binding ModeHint}"/>
-                <StackPanel Orientation="Horizontal" Visibility="{Binding IsTransferMode, Converter={StaticResource BoolVis}}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Visibility="{Binding IsTransferMode, Converter={StaticResource BoolVis}}">
                     <TextBlock Text="Kho nhận" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource Muted}"/>
                     <ui:SafeComboBox Width="280" ItemsSource="{Binding Destinations}" SelectedItem="{Binding Destination}">
                         <ui:SafeComboBox.Style>
@@ -215,7 +215,7 @@
                         <TextBox Width="100" Style="{StaticResource Box}" ui:NumericFormat.Kind="{x:Static vm:NumericKind.Factor}" Text="{Binding NormText, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding ShowVehicleCalc, Converter={StaticResource BoolVis}}"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Visibility="{Binding IsConsumerMode, Converter={StaticResource BoolVis}}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="{Binding IsConsumerMode, Converter={StaticResource BoolVis}}">
                     <TextBlock Text="Đối tượng" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource Muted}"/>
                     <ui:SafeComboBox Width="280" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" DisplayMemberPath="Name">
                         <ui:SafeComboBox.Style>
@@ -335,8 +335,48 @@
                         IsEnabled="{Binding TransferDetailsEnabled}"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                             IsEnabled="{Binding TransferDetailsEnabled}">
+                    <!-- Nút các loại lô hiển thị (dạng checklist, chỉ trên tab phiếu xuất) -->
+                    <Grid Margin="0,12,12,0" Visibility="{Binding ExportDesk, Converter={StaticResource BoolVis}}">
+                        <ToggleButton x:Name="LotTypeFilterToggle"
+                                      Content="{Binding LotTypeFilterSummary}"
+                                      Padding="10,6" FontSize="12" FontWeight="SemiBold"
+                                      Background="#F1F5F9" Foreground="#1E293B"
+                                      BorderBrush="#CBD5E1" BorderThickness="1"
+                                      Cursor="Hand"
+                                      ToolTip="Chọn các loại lô được hiển thị ở danh sách chọn lô"/>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=LotTypeFilterToggle}"
+                               StaysOpen="False" PlacementTarget="{Binding ElementName=LotTypeFilterToggle}"
+                               Placement="Bottom" AllowsTransparency="True" PopupAnimation="Slide">
+                            <Border Background="White" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6"
+                                    Padding="12,10" MinWidth="240" Margin="0,4,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="12" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.18"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <TextBlock Text="Các loại lô hiển thị" FontWeight="Bold" FontSize="12" Foreground="#0E1C2F" Margin="0,0,0,8"/>
+                                    <DockPanel Margin="0,0,0,8">
+                                        <Button DockPanel.Dock="Left" Content="Tất cả" Padding="8,2" FontSize="11" Margin="0,0,6,0"
+                                                Background="#E2E8F0" BorderThickness="0" Cursor="Hand"
+                                                Command="{Binding SelectAllLotTypeFiltersCommand}"/>
+                                        <Button DockPanel.Dock="Left" Content="Bỏ chọn hết" Padding="8,2" FontSize="11"
+                                                Background="#F1F5F9" BorderThickness="0" Cursor="Hand"
+                                                Command="{Binding ClearAllLotTypeFiltersCommand}"/>
+                                    </DockPanel>
+                                    <Separator Margin="0,0,0,6" Background="#E2E8F0"/>
+                                    <ItemsControl ItemsSource="{Binding LotTypeFilterItems}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Display}" IsChecked="{Binding IsSelected}"
+                                                          Margin="0,4" FontSize="12" Foreground="#1E293B" Cursor="Hand"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                     <CheckBox Content="Tiếp tục thêm phiếu" IsChecked="{Binding ContinueAfterSave}"
-                              VerticalAlignment="Center" Margin="0,0,12,0"
+                              VerticalAlignment="Center" Margin="0,12,12,0"
                               ToolTip="Sau khi lưu giữ giao diện để tạo phiếu khác"/>
                     <Button Content="Lưu phiếu" Style="{StaticResource SaveButton}" Command="{Binding SaveCommand}"/>
                 </StackPanel>
@@ -543,7 +583,8 @@
                                         <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                         <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                         <ColumnDefinition Width="0.7*" MinWidth="160"/>
-                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="76"/>
+                                        <ColumnDefinition Width="84"/>
                                         <ColumnDefinition Width="56"/>
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
@@ -586,7 +627,10 @@
                                             </TextBlock>
                                         </Grid>
                                     </Border>
-                                    <Border Style="{StaticResource Head}" Grid.Column="12" Grid.RowSpan="2"/>
+                                    <Border Style="{StaticResource Head}" Grid.Column="12" Grid.RowSpan="2">
+                                        <TextBlock Text="Nguồn gốc" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    </Border>
+                                    <Border Style="{StaticResource Head}" Grid.Column="13" Grid.RowSpan="2"/>
                                     <Border Style="{StaticResource Head}" Grid.Row="1" Grid.Column="4"><TextBlock Text="{Binding QtyHeader}" HorizontalAlignment="Center" FontSize="12" TextWrapping="Wrap"/></Border>
                                     <Border Style="{StaticResource Head}" Grid.Row="1" Grid.Column="5"><TextBlock Text="Nhiệt độ" HorizontalAlignment="Center" FontSize="12"/></Border>
                                     <Border Style="{StaticResource Head}" Grid.Row="1" Grid.Column="6"><TextBlock Text="Tỉ trọng" HorizontalAlignment="Center" FontSize="12"/></Border>
@@ -614,7 +658,8 @@
                                                     <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                                     <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                                     <ColumnDefinition Width="0.7*" MinWidth="160"/>
-                                                    <ColumnDefinition Width="90"/>
+                                                    <ColumnDefinition Width="76"/>
+                                                    <ColumnDefinition Width="84"/>
                                                     <ColumnDefinition Width="56"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Border Style="{StaticResource Cell}"><TextBlock Text="{Binding Index}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
@@ -726,6 +771,23 @@
                                                     </Grid>
                                                 </Border>
                                                 <Border Style="{StaticResource Cell}" Grid.Column="12">
+                                                    <Grid>
+                                                        <!-- Import: SafeComboBox chọn Nguồn gốc lô -->
+                                                        <ui:SafeComboBox Style="{StaticResource FlatPick}"
+                                                                         ItemsSource="{Binding DataContext.LotOrigins, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                         DisplayMemberPath="Name"
+                                                                         SelectedItem="{Binding OriginOption, UpdateSourceTrigger=PropertyChanged}"
+                                                                         Visibility="{Binding DataContext.ExportDesk, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolVisInverse}}"/>
+                                                        <TextBlock Text="{Binding OriginOption.Name}" IsHitTestVisible="False"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Margin="2,0,16,0" Background="#01FFFFFF"
+                                                                   Visibility="{Binding DataContext.ExportDesk, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolVisInverse}}"/>
+                                                        <!-- Xuất / Điều chuyển: TextBlock hiển thị Nguồn gốc của lô được chọn -->
+                                                        <TextBlock Text="{Binding OriginText}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Visibility="{Binding DataContext.ExportDesk, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolVis}}"/>
+                                                    </Grid>
+                                                </Border>
+                                                <Border Style="{StaticResource Cell}" Grid.Column="13">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Button ToolTip="Xóa dòng" Width="22" Height="22" Padding="0" Margin="0,0,2,0"
                                                                 FontFamily="Segoe MDL2 Assets" FontSize="10" Content="&#xE711;"
@@ -756,7 +818,8 @@
                                         <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                         <ColumnDefinition Width="0.4*" MinWidth="110"/>
                                         <ColumnDefinition Width="0.7*" MinWidth="160"/>
-                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="76"/>
+                                        <ColumnDefinition Width="84"/>
                                         <ColumnDefinition Width="56"/>
                                     </Grid.ColumnDefinitions>
                                     <Border Style="{StaticResource Cell}" Grid.ColumnSpan="3"><TextBlock Text="Cộng" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/></Border>
@@ -770,6 +833,7 @@
                                     <Border Style="{StaticResource Cell}" Grid.Column="10"><TextBlock Text="{Binding TotalAmountText}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,4,0"/></Border>
                                     <Border Style="{StaticResource Cell}" Grid.Column="11"/>
                                     <Border Style="{StaticResource Cell}" Grid.Column="12"/>
+                                    <Border Style="{StaticResource Cell}" Grid.Column="13"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -870,6 +934,7 @@
                     <DataGridTextColumn Header="Diễn giải" Binding="{Binding Row.Nature}" Width="220"/>
                     <DataGridTextColumn Header="Kho" Binding="{Binding Row.WarehouseName}" Width="180"/>
                     <DataGridTextColumn Header="Loại lô" Binding="{Binding Row.LotTypeCode}" Width="72"/>
+                    <DataGridTextColumn Header="Nguồn gốc" Binding="{Binding Row.Origin}" Width="85"/>
                     <DataGridTextColumn Header="Người nhận" Binding="{Binding Row.ReceiverPerson}" Width="150"/>
                     <DataGridTextColumn Header="Hàng" Binding="{Binding Row.ItemName}" Width="*"/>
                     <DataGridTextColumn Header="Thực nhập" Binding="{Binding Row.ActualQuantity, StringFormat=N0}" Width="110"/>
@@ -896,6 +961,7 @@
                     <DataGridTextColumn Header="Diễn giải" Binding="{Binding Row.Nature}" Width="180"/>
                     <DataGridTextColumn Header="Kho nhận" Binding="{Binding Row.DestinationWarehouseName}" Width="160"/>
                     <DataGridTextColumn Header="Loại lô" Binding="{Binding Row.LotTypeCode}" Width="72"/>
+                    <DataGridTextColumn Header="Nguồn gốc" Binding="{Binding Row.Origin}" Width="85"/>
                     <DataGridTextColumn Header="Người nhận" Binding="{Binding Row.ReceiverPerson}" Width="140"/>
                     <DataGridTextColumn Header="Số xe" Binding="{Binding Row.VehiclePlate}" Width="100"/>
                     <DataGridTextColumn Header="Km" Binding="{Binding Row.Kilometers}" Width="70"/>

@@ -156,9 +156,13 @@ public partial class OpeningLotRowVm : ObservableObject
     [ObservableProperty] private string _price = "";
     [ObservableProperty] private LotTypeRow? _lotType;
     [ObservableProperty] private bool _lotTypeLocked;
+    [ObservableProperty] private LotOriginRow? _originOption;
+    [ObservableProperty] private string _originText = "Tự mua";
+    [ObservableProperty] private bool _originLocked;
     public Guid LotTypeId => LotType?.Id ?? SeedIds.LotTypeTx;
     /// <summary>Nhóm lớn (NL) chưa chia loại lô — cột Loại lô để trống.</summary>
     public string LotTypeCode => IsGroupHeader || IsGroupTotal ? "" : (LotType?.Code ?? "TX");
+    public string OriginName => IsGroupHeader || IsGroupTotal || IsLotTypeHeader ? "" : (OriginOption?.Name ?? OriginText ?? "Tự mua");
     public Guid? SnapshotItemId { get; set; }
     public string SnapshotName { get; set; } = "";
     public string GroupName { get; set; } = "";
@@ -215,6 +219,15 @@ public partial class OpeningLotRowVm : ObservableObject
     partial void OnLotTypeChanged(LotTypeRow? value)
     {
         if (!_loading && !IsSheetHeader && !LotTypeLocked)
+            IdentityChanged?.Invoke(this);
+    }
+
+    partial void OnOriginOptionChanged(LotOriginRow? value)
+    {
+        if (value is not null)
+            OriginText = value.Name;
+        OnPropertyChanged(nameof(OriginName));
+        if (!_loading && !IsSheetHeader && !OriginLocked)
             IdentityChanged?.Invoke(this);
     }
 
@@ -390,6 +403,7 @@ public partial class OpeningVm : PageVm, IDocumentEditor
     public ObservableCollection<WarehouseRow> Warehouses { get; } = [];
     public ObservableCollection<ItemRow> Items { get; } = [];
     public ObservableCollection<LotTypeRow> LotTypes { get; } = [];
+    public ObservableCollection<LotOriginRow> LotOrigins { get; } = [];
     public ObservableCollection<OpeningLotRowVm> Rows { get; } = [];
     public ICollectionView SheetRows { get; }
     [ObservableProperty] private OpeningLotRowVm? _selected;
@@ -450,19 +464,22 @@ public partial class OpeningVm : PageVm, IDocumentEditor
                 Items.Add(row);
             ReloadLotTypes();
             Selected = null;
-            var grouped = new Dictionary<(string Key, long Price, Guid LotTypeId), OpeningLotRowVm>();
+            var grouped = new Dictionary<(string Key, long Price, Guid LotTypeId, string Origin), OpeningLotRowVm>();
             var duplicate = 0;
             DateTime? date = null;
             foreach (var doc in snapshot.Documents)
             {
                 date = date is null || doc.DocumentDate > date ? doc.DocumentDate : date;
                 var typeId = doc.LotTypeId ?? SeedIds.LotTypeTx;
-                var key = (QuantityMath.LotKey(doc.ItemName), doc.UnitPrice, typeId);
+                var origin = string.IsNullOrWhiteSpace(doc.Origin) ? "Tự mua" : doc.Origin;
+                var key = (QuantityMath.LotKey(doc.ItemName), doc.UnitPrice, typeId, origin);
                 if (!grouped.TryGetValue(key, out var lot))
                 {
                     lot = CreateRow();
                     lot.Price = Numbers.Money(doc.UnitPrice);
                     lot.LotType = LotTypeUi.Pick(LotTypes, typeId);
+                    lot.OriginOption = LotOrigins.FirstOrDefault(x => string.Equals(x.Name, origin, StringComparison.OrdinalIgnoreCase)) ?? LotOrigins.FirstOrDefault();
+                    lot.OriginText = origin;
                     lot.LoadItem(
                         Items.FirstOrDefault(x => doc.ItemId is Guid id && x.Id == id) ?? Items.FirstOrDefault(x => x.Name == doc.ItemName),
                         doc.ItemId,
@@ -505,7 +522,7 @@ public partial class OpeningVm : PageVm, IDocumentEditor
         }
     }
 
-    public void AddLotFromDialog(ItemRow item, string priceText, LotTypeRow lotType)
+    public void AddLotFromDialog(ItemRow item, string priceText, LotTypeRow lotType, LotOriginRow lotOrigin)
     {
         if (!Numbers.Try(priceText, out var price) || !QuantityMath.TryWholeMoney(price, out var whole) || whole < 0)
         {
@@ -513,28 +530,32 @@ public partial class OpeningVm : PageVm, IDocumentEditor
             return;
         }
 
-        var key = (QuantityMath.LotKey(item.Name), whole, lotType.Id);
+        var originName = lotOrigin.Name;
+        var key = (QuantityMath.LotKey(item.Name), whole, lotType.Id, originName);
         if (Rows.Any(x => !x.IsSheetHeader
                           && QuantityMath.LotKey(x.LotName) == key.Item1
                           && Numbers.Try(x.Price, out var existing)
                           && QuantityMath.TryWholeMoney(existing, out var existingWhole)
                           && existingWhole == whole
-                          && x.LotTypeId == lotType.Id))
+                          && x.LotTypeId == lotType.Id
+                          && string.Equals(x.OriginText, originName, StringComparison.OrdinalIgnoreCase)))
         {
-            Fail($"Đã có dòng {item.Name} | {Numbers.Money(price)} | {lotType.Code}. Chọn dòng đó để nhập tồn.");
+            Fail($"Đã có dòng {item.Name} | {Numbers.Money(price)} | {lotType.Code} | {originName}. Chọn dòng đó để nhập tồn.");
             return;
         }
 
         var row = CreateRow();
         row.Price = Numbers.Money(whole);
         row.LotType = LotTypeUi.Pick(LotTypes, lotType.Id) ?? lotType;
+        row.OriginOption = LotOrigins.FirstOrDefault(x => x.Id == lotOrigin.Id) ?? lotOrigin;
+        row.OriginText = originName;
         row.LoadItem(item, item.Id, item.Name, item.GroupName, item.UnitName, item.QualityInfo, item.MeasurementNote, item.Temperature);
         row.RecalcTotals();
         var data = Rows.Where(x => !x.IsSheetHeader).ToList();
         data.Add(row);
         RebuildSheetStructure(data);
         Selected = row;
-        Ok($"Đã thêm lô {item.Name} ({lotType.Code}). Nhập số lượng theo kho rồi Lưu bảng.");
+        Ok($"Đã thêm lô {item.Name} ({lotType.Code}, {originName}). Nhập số lượng theo kho rồi Lưu bảng.");
     }
 
     [RelayCommand]
@@ -571,7 +592,7 @@ public partial class OpeningVm : PageVm, IDocumentEditor
 
         var cells = new List<OpeningRequest>();
         var voids = new List<Guid>(_pendingVoids);
-        var seen = new HashSet<(string Key, long Price, Guid LotTypeId)>();
+        var seen = new HashSet<(string Key, long Price, Guid LotTypeId, string Origin)>();
         foreach (var row in Rows)
         {
             if (row.IsSheetHeader)
@@ -625,10 +646,10 @@ public partial class OpeningVm : PageVm, IDocumentEditor
                 return;
             }
 
-            var key = (QuantityMath.LotKey(name), whole, row.LotTypeId);
+            var key = (QuantityMath.LotKey(name), whole, row.LotTypeId, row.OriginText);
             if (!seen.Add(key))
             {
-                Fail($"Hai dòng cùng mặt hàng, đơn giá và loại lô ({name}, {Numbers.Money(price)}, {row.LotTypeCode}). Gộp vào một dòng.");
+                Fail($"Hai dòng cùng mặt hàng, đơn giá, loại lô và nguồn gốc ({name}, {Numbers.Money(price)}, {row.LotTypeCode}, {row.OriginText}). Gộp vào một dòng.");
                 return;
             }
 
@@ -652,6 +673,7 @@ public partial class OpeningVm : PageVm, IDocumentEditor
                     MeasurementNote = row.MeasurementNote,
                     UnitPrice = price,
                     LotTypeId = row.LotTypeId,
+                    Origin = row.OriginText,
                     ActualQuantity = quantity
                 });
             }
@@ -707,7 +729,9 @@ public partial class OpeningVm : PageVm, IDocumentEditor
         var row = new OpeningLotRowVm
         {
             SheetOrder = ++_sheetOrder,
-            LotType = LotTypeUi.Pick(LotTypes, SeedIds.LotTypeTx)
+            LotType = LotTypeUi.Pick(LotTypes, SeedIds.LotTypeTx),
+            OriginOption = LotOrigins.FirstOrDefault(x => x.Id == SeedIds.LotOriginTuMua) ?? LotOrigins.FirstOrDefault(),
+            OriginText = "Tự mua"
         };
         row.GroupChanged += OnRowIdentityChanged;
         row.IdentityChanged += OnRowIdentityChanged;
@@ -743,6 +767,9 @@ public partial class OpeningVm : PageVm, IDocumentEditor
         LotTypes.Clear();
         foreach (var row in System.GetLotTypes())
             LotTypes.Add(row);
+        LotOrigins.Clear();
+        foreach (var row in System.GetLotOrigins())
+            LotOrigins.Add(row);
     }
 
     private void QueueRebuildStructure()

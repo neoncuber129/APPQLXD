@@ -11,11 +11,14 @@ public partial class QuotaView
 {
     private static readonly double[] Cols =
     [
-        40, 150,
-        64, 64, 64,
-        52, 52, 52, 52,
-        52, 52, 56, 52, 52, 56,
-        64, 36, 56, 56
+        40, 160,
+        56, 56, 56,
+        48, 48, 48, 48,
+        48, 48, 52, 48, 48, 52,
+        56,
+        52, 52, 56,
+        52, 52, 56,
+        52, 52, 56
     ];
 
     private static readonly Brush Line = new SolidColorBrush(Color.FromRgb(0x1B, 0x28, 0x36));
@@ -93,8 +96,8 @@ public partial class QuotaView
         HeadSpan(table, 5, 0, 4, 1, "Hoạt động của xe, máy, tàu");
         HeadSpan(table, 9, 0, 6, 1, "Nhiên liệu tiêu thụ");
         HeadSpan(table, 15, 0, 1, 3, "Cộng\nNLTT");
-        HeadSpan(table, 16, 0, 1, 3, "Lũy tích\nsử dụng");
-        HeadSpan(table, 17, 0, 2, 1, "So sánh giữa hạn mức và sử dụng");
+        HeadSpan(table, 16, 0, 3, 1, "Lũy tích sử dụng");
+        HeadSpan(table, 19, 0, 6, 1, "So sánh giữa hạn mức và sử dụng");
 
         // Hàng 2
         HeadSpan(table, 2, 1, 1, 2, "Xăng");
@@ -104,8 +107,11 @@ public partial class QuotaView
         HeadSpan(table, 7, 1, 2, 1, "Sử dụng điêzel");
         HeadSpan(table, 9, 1, 3, 1, "Xăng");
         HeadSpan(table, 12, 1, 3, 1, "Điêzel");
-        HeadSpan(table, 17, 1, 1, 2, "Còn");
-        HeadSpan(table, 18, 1, 1, 2, "Quá");
+        HeadSpan(table, 16, 1, 1, 2, "Xăng");
+        HeadSpan(table, 17, 1, 1, 2, "Điêzel");
+        HeadSpan(table, 18, 1, 1, 2, "Tổng");
+        HeadSpan(table, 19, 1, 3, 1, "Còn");
+        HeadSpan(table, 22, 1, 3, 1, "Quá");
 
         // Hàng 3
         HeadCell(table, 5, 2, "Km");
@@ -118,6 +124,12 @@ public partial class QuotaView
         HeadCell(table, 12, 2, "Xe");
         HeadCell(table, 13, 2, "Máy");
         HeadCell(table, 14, 2, "Cộng");
+        HeadCell(table, 19, 2, "Xăng");
+        HeadCell(table, 20, 2, "Điêzel");
+        HeadCell(table, 21, 2, "Tổng");
+        HeadCell(table, 22, 2, "Xăng");
+        HeadCell(table, 23, 2, "Điêzel");
+        HeadCell(table, 24, 2, "Tổng");
     }
 
     private static void PaintDataRow(Grid table, int row, QuotaRowVm vm)
@@ -150,9 +162,15 @@ public partial class QuotaView
         Cell(table, 13, row, vm.DieselMachine, ink, weight);
         Cell(table, 14, row, vm.DieselFuelTotal, ink, weight);
         Cell(table, 15, row, vm.FuelTotal, ink, weight);
-        Cell(table, 16, row, vm.Cumulative, ink, weight);
-        Cell(table, 17, row, vm.Remaining, ink, weight);
-        Cell(table, 18, row, vm.Excess, ink, weight);
+        Cell(table, 16, row, vm.CumGasoline, ink, weight);
+        Cell(table, 17, row, vm.CumDiesel, ink, weight);
+        Cell(table, 18, row, vm.CumTotal, ink, weight);
+        Cell(table, 19, row, vm.RemainGasoline, ink, weight);
+        Cell(table, 20, row, vm.RemainDiesel, ink, weight);
+        Cell(table, 21, row, vm.RemainTotal, ink, weight);
+        Cell(table, 22, row, vm.ExcessGasoline, ink, weight);
+        Cell(table, 23, row, vm.ExcessDiesel, ink, weight);
+        Cell(table, 24, row, vm.ExcessTotal, ink, weight);
     }
 
     private static void HeadSpan(Grid table, int col, int row, int colSpan, int rowSpan, string text)

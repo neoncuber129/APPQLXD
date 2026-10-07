@@ -18,6 +18,11 @@ public static class DataSeeder
         if (!db.MeasureUnits.Any(x => x.Id == SeedIds.UnitLiter))
             db.MeasureUnits.Add(new MeasureUnit { Id = SeedIds.UnitLiter, Name = "Lít" });
 
+        if (!db.LotOrigins.Any(x => x.Id == SeedIds.LotOriginTuMua))
+            db.LotOrigins.Add(new LotOrigin { Id = SeedIds.LotOriginTuMua, Name = "Tự mua", SortOrder = 1, IsActive = true });
+        if (!db.LotOrigins.Any(x => x.Id == SeedIds.LotOriginTrenCap))
+            db.LotOrigins.Add(new LotOrigin { Id = SeedIds.LotOriginTrenCap, Name = "Trên cấp", SortOrder = 2, IsActive = true });
+
         if (!db.FuelItems.Any(x => x.Id == SeedIds.ItemRon95))
         {
             db.FuelItems.Add(new FuelItem

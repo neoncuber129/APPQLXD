@@ -29,6 +29,14 @@ public sealed class LotType
     public bool IsActive { get; set; } = true;
 }
 
+public sealed class LotOrigin
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 public sealed class FuelItem
 {
     public Guid Id { get; set; }
@@ -134,6 +142,7 @@ public sealed class Lot
     public string MeasurementNote { get; set; } = "";
     public string ConversionRule { get; set; } = "";
     public decimal FirstVcf { get; set; }
+    public string Origin { get; set; } = "Tự mua";
     public LotType? LotType { get; set; }
 }
 
@@ -199,6 +208,7 @@ public sealed class FuelDocument
     public long UnitPrice { get; set; }
     public Guid? LotTypeId { get; set; }
     public string LotTypeCode { get; set; } = "";
+    public string Origin { get; set; } = "Tự mua";
     public decimal InputQuantity { get; set; }
     public decimal ActualQuantity { get; set; }
     public decimal? Amount { get; set; }
@@ -252,6 +262,7 @@ public sealed class FuelDocumentLine
     public long UnitPrice { get; set; }
     public Guid? LotTypeId { get; set; }
     public string LotTypeCode { get; set; } = "";
+    public string Origin { get; set; } = "Tự mua";
     /// <summary>Điều chuyển: loại lô tại kho nhận (null = giữ nguyên loại nguồn).</summary>
     public Guid? DestinationLotTypeId { get; set; }
     public string DestinationLotTypeCode { get; set; } = "";
