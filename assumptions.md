@@ -111,6 +111,7 @@ Nhóm **Tàu** (dưới Phương tiện trong danh mục kho) có thuộc tính 
 6. **Sổ tiêu thụ quý (`ShipQuarterBookWindow`):**
    - Khi chuyển chế độ qua lại giữa thủ công và tự động (chuột phải vào dòng): nếu chuyển từ thủ công sang tự động mà dữ liệu thủ công đang có khác công thức -> bảo lưu nguyên vẹn dữ liệu thủ công đã nhập (`PendingRecalculate = true`), hiển thị icon tính toán lại 🔄 kèm tooltip chi tiết.
    - Khi người dùng click icon 🔄 hoặc chỉnh sửa bất kỳ ô giờ/số máy nào trong dòng -> tự động áp dụng công thức và xóa icon cảnh báo.
+   - Quy tắc phân định màu theo loại lô (TX xanh `#E8F0F8`, SSCĐ vàng `#FFF6E8`, IUU tím `#F5EAF5`, khác `#EEF2F5`): chỉ áp dụng cho riêng ô cột Diễn giải (cột index 2) thay vì đổi màu toàn bộ hàng, giúp toàn bảng 23 cột giữ nền trắng sáng sủa, các ô số liệu dễ nhìn trong khi tính chất lô vẫn được nhận biết rõ ràng theo diễn giải. Khi thay đổi loại lô trong dropdown, màu nền cột Diễn giải lập tức cập nhật tương ứng.
 
 ## 10d. Chế độ kho XD / PTKT
 **ASSUMED: FIXED — TẠM THỜI**
@@ -310,3 +311,16 @@ Mẫu `2026 PHIẾU NHẬP XUẤT XĂNG DẦU.xlsx` và `Sổ NXT.xlsx` bổ sun
 Phiếu xuất trên tab quản lý: chế độ hiện có **Điều chuyển kho** (mặc định khi tạo phiếu mới) và **Xuất xăng dầu lẻ**. Chế độ xuất máy/phương tiện tạm ẩn trên UI (vẫn mở được phiếu cũ). **Dữ liệu mẫu** theo ma trận §10d: XD = tồn/nhập/lẻ/ĐC/tiêu thụ quý; PTKT = tồn/nhập/lẻ; chỉ Điều chuyển + Xuất lẻ — không tạo phiếu xuất máy/phương tiện. Trừ tồn theo thực xuất. Định mức xe trên điều chuyển sang phương tiện vẫn áp dụng; định mức tiêu thụ tàu/xe nằm ở tiêu thụ quý / phiếu tiêu thụ. Số km và nhiệm vụ lưu trên phiếu để đối chiếu sổ NXT.
 
 Tab **Kho**: **Sổ NXT** (theo kho chọn, cột mặt hàng), **Tồn đầu kỳ**, **NXT tổng** (kho lớn = mọi kho trong phạm vi; dòng lô = mặt hàng + đơn giá theo nhóm; tiêu đề nhóm hiện tổng tồn đầu / nhập / xuất / tồn sau; mỗi nhóm một màu; điều chuyển nội bộ không tính nhập–xuất).
+
+## 29. Kích hoạt nút xóa phiếu trên tab Phiếu nhập và Phiếu xuất
+**ASSUMED: FIXED**
+
+- Nút "Xóa phiếu" trên tab Phiếu nhập và Phiếu xuất chỉ có hiệu lực (enabled) khi người dùng tick chọn ít nhất một phiếu cụ thể trong danh sách (`IsSelected = true`).
+- Khi chưa có phiếu nào được tick chọn (dù dòng đang được trỏ chuột/focus trong DataGrid):
+  - Nút "Xóa phiếu" ở trạng thái vô hiệu hóa (disabled, mờ 40% độ trong suốt và con trỏ chuột không đổi thành dạng tay).
+  - Không tự động fallback xóa theo dòng đang chọn `ActiveRow`.
+- Khi người dùng tick chọn 1 phiếu hoặc nhiều phiếu (hoặc bấm "Chọn tất cả"):
+  - Nút "Xóa phiếu" lập tức có hiệu lực và sáng lên.
+  - Thao tác xóa sẽ chỉ xóa các phiếu thực tế đã tick chọn.
+- Sau khi xóa thành công hoặc khi bấm "Bỏ chọn" / đổi quý năm / tải lại danh sách, các phiếu mới không được tick thì nút "Xóa phiếu" tự động vô hiệu hóa trở lại.
+

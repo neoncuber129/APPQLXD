@@ -155,9 +155,9 @@
                            Text="Chỉ xem số đã lưu từ sổ. Nhóm nhiên liệu và loại lô (TX/SSCĐ/IUU) có dòng tổng từng cột như NXT tổng. Bấm tên đối tượng (cột) để mở sổ tiêu thụ và Lưu sổ."/>
                 <Border Style="{StaticResource Banner}"><TextBlock Text="{Binding Banner}" TextWrapping="Wrap"/></Border>
             </StackPanel>
-            <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid Grid.Row="1" Margin="0,6,0,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="32"/>
+                    <RowDefinition Height="26"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0">
@@ -173,7 +173,7 @@
                 </Grid>
             <ui:SafeDataGrid x:Name="Sheet" Grid.Row="1" Margin="0" ItemsSource="{Binding SheetRows}" SelectedItem="{Binding Selected}"
                       IsReadOnly="True" CanUserAddRows="False" CanUserSortColumns="False" FrozenColumnCount="3" AutoGenerateColumns="False"
-                      CanUserResizeRows="False" ColumnHeaderHeight="34" RowHeight="36" RowBackground="White" AlternatingRowBackground="#F7F9FB"
+                      CanUserResizeRows="False" ColumnHeaderHeight="28" RowHeight="26" RowBackground="White" AlternatingRowBackground="#F7F9FB"
                       EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling" LoadingRow="OnLoadingRow">
                 <ui:SafeDataGrid.Resources>

@@ -1640,6 +1640,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     {
         foreach (var row in ActiveDocuments)
             row.IsSelected = true;
+        OnDocumentSelectionChanged();
     }
 
     [RelayCommand]
@@ -1647,6 +1648,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
     {
         foreach (var row in ActiveDocuments)
             row.IsSelected = false;
+        OnDocumentSelectionChanged();
     }
 
     private void OpenSelected()
@@ -1710,13 +1712,21 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         }
     }
 
-    [RelayCommand]
+    public bool CanDeleteSelected => ActiveDocuments.Any(x => x.IsSelected);
+
+    private void OnDocumentSelectionChanged()
+    {
+        OnPropertyChanged(nameof(CanDeleteSelected));
+        DeleteSelectedCommand?.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
     private void DeleteSelected()
     {
-        var picks = ChosenRows();
+        var picks = ActiveDocuments.Where(x => x.IsSelected).Select(x => x.Row).ToList();
         if (picks.Count == 0)
         {
-            Fail(ExportDesk ? "Chọn phiếu xuất trong danh sách." : "Chọn phiếu nhập trong danh sách.");
+            Fail(ExportDesk ? "Tick chọn phiếu xuất trong danh sách." : "Tick chọn phiếu nhập trong danh sách.");
             return;
         }
 
@@ -2688,7 +2698,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
         var keep = ExportDesk ? SelectedExport?.Id : SelectedImport?.Id;
         var list = new ObservableCollection<VoucherListItemVm>(
             rows.OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.DisplayNumber)
-                .Select(x => new VoucherListItemVm(x)));
+                .Select(x => new VoucherListItemVm(x, OnDocumentSelectionChanged)));
         var selected = keep is Guid id ? list.FirstOrDefault(x => x.Id == id) : null;
         if (ExportDesk)
         {
@@ -2700,6 +2710,7 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
             ImportDocuments = list;
             SelectedImport = selected;
         }
+        OnDocumentSelectionChanged();
     }
 
     private void ReloadDestinations(Guid? prefer = null)
@@ -3110,10 +3121,18 @@ public partial class VoucherDeskVm : PageVm, IDocumentEditor
 
 public partial class VoucherListItemVm : ObservableObject
 {
-    public VoucherListItemVm(DocumentRow row) => Row = row;
+    private readonly Action? _onSelectionChanged;
+
+    public VoucherListItemVm(DocumentRow row, Action? onSelectionChanged = null)
+    {
+        Row = row;
+        _onSelectionChanged = onSelectionChanged;
+    }
 
     public DocumentRow Row { get; }
     public Guid Id => Row.Id;
 
     [ObservableProperty] private bool _isSelected;
+
+    partial void OnIsSelectedChanged(bool value) => _onSelectionChanged?.Invoke();
 }

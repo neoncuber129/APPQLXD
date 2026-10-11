@@ -4,23 +4,23 @@
         Title="Sổ tiêu thụ tàu" Height="820" Width="1520"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
         MinHeight="520" MinWidth="1100">
-    <DockPanel Margin="16">
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+    <DockPanel Margin="12,8,12,8">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
             <Button Content="Xuất Word" Style="{StaticResource Ghost}" Margin="0,0,8,0" Click="ExportWordClick"/>
             <Button Content="Thêm dòng" Style="{StaticResource Ghost}" Margin="0,0,8,0" Click="AddRowClick"/>
             <Button Content="Lưu sổ" Style="{StaticResource Primary}" Margin="0,0,8,0" Click="SaveClick"/>
             <Button Content="Đóng" Style="{StaticResource Ghost}" IsCancel="True" Click="CloseClick"/>
         </StackPanel>
 
-        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Title}"/>
-                    <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,2,0,0" Text="{Binding Subtitle}"/>
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding Title}"/>
+                    <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,1,0,0" Text="{Binding Subtitle}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                     <TextBlock FontWeight="SemiBold" HorizontalAlignment="Right" Text="{Binding FormId}"/>
@@ -28,7 +28,7 @@
                 </StackPanel>
             </Grid>
 
-            <Grid Margin="0,10,0,0">
+            <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -45,11 +45,11 @@
                 <TextBlock Grid.Column="5" FontWeight="SemiBold" VerticalAlignment="Center" Text="{Binding FuelUsed}"/>
             </Grid>
 
-            <Border Style="{StaticResource Banner}" Margin="0,10,0,0">
-                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"/>
+            <Border Style="{StaticResource Banner}" Margin="0,6,0,0" Padding="8,4">
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="11.5"/>
             </Border>
-            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap"
-                       Text="Mỗi loại lô một màu (TX xanh / SSCĐ vàng / IUU tím). Số giờ hoạt động nhập dạng giờ.phút' (vd 2.30' = 2 giờ 30 phút). Dòng ĐC tự nạp theo ngày. Dòng tiêu thụ: Số máy mặc định từ danh mục; dầu mỡ = 4% × Xuất NL (sửa tay được). Thêm/đổi ngày sẽ sắp lại với phiếu ĐC. Cột Tổng = NL + DM. Chuột phải dòng để Xuất NL tay."/>
+            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                       Text="Cột Diễn giải phân định màu theo loại lô (TX xanh / SSCĐ vàng / IUU tím). Số giờ hoạt động nhập dạng giờ.phút' (vd 2.30' = 2 giờ 30 phút). Dòng ĐC tự nạp theo ngày. Dòng tiêu thụ: Số máy mặc định từ danh mục; dầu mỡ = 4% × Xuất NL (sửa tay được). Thêm/đổi ngày sẽ sắp lại với phiếu ĐC. Cột Tổng = NL + DM. Chuột phải dòng để Xuất NL tay."/>
         </StackPanel>
 
         <Border BorderBrush="#FFCBD5E1" BorderThickness="1" Background="White">

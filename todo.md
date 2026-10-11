@@ -1,5 +1,25 @@
 # TODO
 
+## Bật nút Xóa phiếu khi tick chọn phiếu ở tab Phiếu nhập và Phiếu xuất (2026-10-11)
+- [x] ViewModel (`VoucherListItemVm`, `VoucherDeskVm`): Bổ sung cơ chế thông báo khi thuộc tính `IsSelected` thay đổi, cập nhật điều kiện `CanDeleteSelected` (`ActiveDocuments.Any(x => x.IsSelected)`).
+- [x] Logic xóa (`DeleteSelected`): Bỏ fallback xóa theo dòng trỏ chuột (`ActiveRow`), chỉ xóa các phiếu thực sự được tick chọn (`IsSelected`).
+- [x] Giao diện (`VoucherDeskView.xaml`, `AppTheme.xaml`): Đồng bộ trạng thái `CanExecute`/`IsEnabled` và hiệu ứng hiển thị (dimming / cursor) của nút "Xóa phiếu".
+- [x] Kiểm thử tự động (`dotnet test`): Xác nhận build thành công, không phát sinh lỗi biên dịch hay hồi quy.
+- [x] Tài liệu (`assumptions.md`): Ghi chép giả định nghiệp vụ về điều kiện kích hoạt nút xóa phiếu.
+
+## Phân định màu cột diễn giải trong Sổ tiêu thụ quý (2026-10-11)
+- [x] Cập nhật `ShipQuarterBookWindow.xaml.cs`: Đổi màu nền hàng sang nền trắng (hoặc `OpeningBg` cho hàng tồn đầu), chỉ áp dụng màu loại lô (`LotTypeBackground`) cho ô cột Diễn giải (cột index 2).
+- [x] Cập nhật `combo.SelectionChanged` khi đổi loại lô: Chỉ cập nhật màu nền của ô cột Diễn giải tương ứng thay vì cả hàng.
+- [x] Cập nhật ghi chú gợi ý trên `ShipQuarterBookWindow.xaml`: Diễn đạt rõ quy tắc phân định màu theo loại lô áp dụng ở cột Diễn giải.
+- [x] Cập nhật tài liệu `assumptions.md` và chạy kiểm thử tự động `dotnet test`.
+
+## Thu nhỏ chiều cao các hàng ở Sổ tiêu thụ (2026-10-07)
+- [x] Sổ tiêu thụ tàu (`ShipQuarterBookWindow.xaml` / `ShipQuarterBookWindow.xaml.cs`): Giảm `RowHeight` từ 34 xuống 24 (giảm ~30% chiều cao mỗi hàng, hiển thị thêm ~40-50% số hàng trên màn hình), căn chỉnh kích thước nút xóa dòng, nút 🔄 tính lại công thức và padding header/banner gọn gàng.
+- [x] Sổ tiêu thụ máy, xe (`ConsumerTransferWindow.xaml` / `ConsumerTransferWindow.xaml.cs`): Giảm `RowHeight` từ 32 xuống 24, điều chỉnh nút thao tác và padding header.
+- [x] Tab Tiêu thụ quý (`ConsumptionView.xaml` / `ConsumptionView.xaml.cs`): Giảm `RowHeight` lưới từ 36 xuống 26, `ColumnHeaderHeight` xuống 28, `BandHeight` xuống 26.
+- [x] Tiêu thụ kho phụ (`AuxiliarySheetView.xaml`): Giảm `RowHeight` từ 36 xuống 26, `ColumnHeaderHeight` xuống 28.
+- [x] Kiểm thử tự động `dotnet test` xác nhận 135/135 tests pass 100%.
+
 ## Tách 4 nhóm kho (Kho Hải đoàn, Máy, Phương tiện, Tàu & Tổng) trên Tab NXT Tổng (2026-10-07)
 - [x] Models (`APPQLXD.Core/Models/Records.cs`): Mở rộng `NxtTotalRow` với 20 trường số lượng (`OpeningMain`, `OpeningMachine`, `OpeningVehicle`, `OpeningShip`, `OpeningTotal`, `In...`, `Out...`, `Closing...`), giữ alias properties `Opening`, `In`, `Out`, `Closing` và constructor tương thích ngược.
 - [x] Engine (`APPQLXD.Core/Services/NxtBook.cs`): Thêm phân loại `NxtWhCategory`, hàm `GetWhCategory`, nạp consumers, cập nhật `BuildTotalCore` phân bổ chính xác Tồn đầu, Nhập, Xuất, Tồn sau cho từng nhóm kho và tính tổng đơn vị độc lập với điều chuyển nội bộ.

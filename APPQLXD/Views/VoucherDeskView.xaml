@@ -893,7 +893,7 @@
             <DockPanel Margin="0,0,0,8">
                 <Button DockPanel.Dock="Right" Content="{Binding CreateText}" Style="{StaticResource Primary}" Command="{Binding CreateCommand}"/>
                 <Button DockPanel.Dock="Right" Content="Xuất Word" Style="{StaticResource Ghost}" Command="{Binding ExportWordCommand}"/>
-                <Button DockPanel.Dock="Right" Content="Xóa phiếu" Style="{StaticResource Danger}" Command="{Binding DeleteSelectedCommand}"/>
+                <Button DockPanel.Dock="Right" Content="Xóa phiếu" Style="{StaticResource Danger}" Command="{Binding DeleteSelectedCommand}" ToolTip="Tick chọn phiếu trong danh sách để xóa"/>
                 <Button DockPanel.Dock="Right" Content="Sửa phiếu" Style="{StaticResource Ghost}" Command="{Binding EditSelectedCommand}"/>
                 <Button DockPanel.Dock="Right" Content="Xem phiếu" Style="{StaticResource Ghost}" Command="{Binding ViewSelectedCommand}"/>
                 <Button DockPanel.Dock="Right" Content="Bỏ chọn" Style="{StaticResource Ghost}" Command="{Binding ClearDocumentSelectionCommand}"/>

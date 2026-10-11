@@ -14,7 +14,7 @@ namespace APPQLXD.Views;
 
 public partial class ConsumptionView : UserControl
 {
-    private const double BandHeight = 30;
+    private const double BandHeight = 26;
     private static readonly Dictionary<string, SolidColorBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SolidColorBrush Line = Freeze(Color.FromRgb(0xD5, 0xDE, 0xE8));
     private static readonly SolidColorBrush Edge = Freeze(Color.FromRgb(0x9B, 0xB0, 0xC3));

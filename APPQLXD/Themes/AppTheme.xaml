@@ -68,6 +68,12 @@
         <Setter Property="Padding" Value="14,8"/>
         <Setter Property="Margin" Value="0,12,8,0"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.4"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
     <Style x:Key="Danger" TargetType="Button" BasedOn="{StaticResource Ghost}">
         <Setter Property="Foreground" Value="#9E2A2B"/>

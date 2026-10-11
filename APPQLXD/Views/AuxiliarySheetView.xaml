@@ -24,6 +24,6 @@
         </StackPanel>
         <ui:SafeDataGrid x:Name="Sheet" Grid.Row="1" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}"
                   IsReadOnly="False" CanUserAddRows="False" FrozenColumnCount="2" AutoGenerateColumns="False"
-                  CanUserResizeRows="False" RowHeight="36"/>
+                  CanUserResizeRows="False" ColumnHeaderHeight="28" RowHeight="26"/>
     </Grid>
 </UserControl>

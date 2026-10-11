@@ -348,7 +348,7 @@ public sealed class ShipQuarterBookLineVm : INotifyPropertyChanged
 
 public partial class ShipQuarterBookWindow : Window
 {
-    private const double RowHeight = 34;
+    private const double RowHeight = 24;
     private static decimal MaxEditQty => QuantityMath.MaxEditQty;
     private static readonly double[] ColWidths =
     [
@@ -1046,7 +1046,7 @@ public partial class ShipQuarterBookWindow : Window
 
     private Grid BuildRow(ShipQuarterBookPopupVm model, ShipQuarterBookLineVm row)
     {
-        var bg = row.IsOpening ? OpeningBg : LotTypeBackground(row.LotTypeCode);
+        var bg = row.IsOpening ? OpeningBg : Brushes.White;
         var grid = new Grid { Height = RowHeight, Background = bg };
         foreach (var width in ColWidths)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
@@ -1055,11 +1055,13 @@ public partial class ShipQuarterBookWindow : Window
         var gas = model.FuelIsGasoline && fuelOut is > 0 ? fuelOut : null;
         var diesel = !model.FuelIsGasoline && fuelOut is > 0 ? fuelOut : null;
 
+        var descBg = row.IsOpening ? Brushes.Transparent : LotTypeBackground(row.LotTypeCode);
+
         if (!row.IsEditable)
         {
             AddData(grid, 0, row.DocumentNumber, false);
             AddData(grid, 1, FormatDate(row.DocumentDate), false);
-            AddData(grid, 2, row.Description, false);
+            AddData(grid, 2, row.Description, false, background: descBg);
             AddData(grid, 3, row.IsOpening ? "" : row.MissionTaskName, false);
             AddData(grid, 4, row.IsOpening ? "" : row.LotTypeCode, true);
             for (var i = 5; i <= 15; i++)
@@ -1076,7 +1078,7 @@ public partial class ShipQuarterBookWindow : Window
 
         AddEdit(grid, 0, row.DocumentNumber, false, text => row.DocumentNumber = text);
         AddDateEdit(grid, 1, row.DocumentDate, d => row.DocumentDate = d);
-        AddEdit(grid, 2, row.Description, false, text => row.Description = text);
+        AddEdit(grid, 2, row.Description, false, text => row.Description = text, background: descBg);
         AddMissionCell(grid, 3, model, row);
         AddLotTypeCell(grid, 4, model, row);
         AddLockedData(grid, 5, FormatQty(row.MainOpsCount == 0 ? null : row.MainOpsCount), true);
@@ -1190,6 +1192,18 @@ public partial class ShipQuarterBookWindow : Window
             _ => LotOtherBg
         };
 
+    private static void UpdateDescriptionBackground(Grid grid, string? lotTypeCode)
+    {
+        foreach (UIElement child in grid.Children)
+        {
+            if (Grid.GetColumn(child) == 2 && child is Border border)
+            {
+                border.Background = LotTypeBackground(lotTypeCode);
+                break;
+            }
+        }
+    }
+
     private void ToggleRowManual(ShipQuarterBookLineVm row, ShipQuarterBookPopupVm model)
     {
         if (row.ManualFuelOut)
@@ -1262,7 +1276,7 @@ public partial class ShipQuarterBookWindow : Window
                 return;
             row.LotTypeId = selected.Id;
             row.LotTypeCode = selected.Code;
-            grid.Background = LotTypeBackground(selected.Code);
+            UpdateDescriptionBackground(grid, selected.Code);
             RecalcBalances();
         };
         var cell = new Border
@@ -1293,12 +1307,12 @@ public partial class ShipQuarterBookWindow : Window
         var btn = new Button
         {
             Content = "✕",
-            FontSize = 12,
+            FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Padding = new Thickness(0),
-            Margin = new Thickness(2, 0, 0, 0),
-            Width = 18,
-            Height = RowHeight - 6,
+            Margin = new Thickness(1, 0, 0, 0),
+            Width = 16,
+            Height = 18,
             Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = "Xóa dòng tiêu thụ",
             Background = Brushes.Transparent,
@@ -1326,15 +1340,15 @@ public partial class ShipQuarterBookWindow : Window
         new()
         {
             Background = Brush(hex),
-            CornerRadius = new CornerRadius(3),
-            Padding = new Thickness(4, 1, 4, 1),
+            CornerRadius = new CornerRadius(2),
+            Padding = new Thickness(3, 0, 3, 0),
             Margin = new Thickness(1, 0, 1, 0),
             ToolTip = tip,
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {
                 Text = text,
-                FontSize = 9,
+                FontSize = 8.5,
                 FontWeight = FontWeights.Bold,
                 Foreground = Brushes.White,
                 VerticalAlignment = VerticalAlignment.Center
@@ -1383,9 +1397,9 @@ public partial class ShipQuarterBookWindow : Window
         grid.Children.Add(cell);
     }
 
-    private static void AddData(Grid grid, int column, string text, bool right, string? toolTip = null)
+    private static void AddData(Grid grid, int column, string text, bool right, string? toolTip = null, Brush? background = null)
     {
-        var cell = Box(text, ColWidths[column], RowHeight, Brushes.Transparent, !right);
+        var cell = Box(text, ColWidths[column], RowHeight, background ?? Brushes.Transparent, !right);
         if (cell.Child is TextBlock block)
         {
             block.FontWeight = FontWeights.Normal;
@@ -1431,11 +1445,11 @@ public partial class ShipQuarterBookWindow : Window
         var btnRecalc = new Button
         {
             Content = "🔄",
-            FontSize = 10,
+            FontSize = 9,
             Padding = new Thickness(0),
-            Margin = new Thickness(0, 0, 2, 0),
-            Width = 16,
-            Height = RowHeight - 8,
+            Margin = new Thickness(0, 0, 1, 0),
+            Width = 14,
+            Height = 18,
             Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = $"Dữ liệu chưa khớp công thức (Công thức: {FormatQty(formulaQty)} {unit}). Nhấp để tính lại theo công thức.",
             Background = Brushes.Transparent,
@@ -1477,7 +1491,7 @@ public partial class ShipQuarterBookWindow : Window
         grid.Children.Add(cell);
     }
 
-    private void AddEdit(Grid grid, int column, string value, bool right, Action<string> set)
+    private void AddEdit(Grid grid, int column, string value, bool right, Action<string> set, Brush? background = null)
     {
         var box = new TextBox
         {
@@ -1519,6 +1533,7 @@ public partial class ShipQuarterBookWindow : Window
         {
             Width = ColWidths[column],
             Height = RowHeight,
+            Background = background ?? Brushes.Transparent,
             BorderBrush = Line,
             BorderThickness = new Thickness(0, 0, 1, 1),
             ClipToBounds = true,

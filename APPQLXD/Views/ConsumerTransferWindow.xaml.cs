@@ -245,7 +245,7 @@ public sealed class ConsumerTransferBookLineVm : INotifyPropertyChanged
 
 public partial class ConsumerTransferWindow : Window
 {
-    private const double RowHeight = 32;
+    private const double RowHeight = 24;
     private static readonly double[] ColWidths =
     [
         78, 88, 156, 160, 72, 100, 100, 78, 78, 78, 78, 62, 62, 78, 78, 78, 78, 78, 78, 44
@@ -872,11 +872,11 @@ public partial class ConsumerTransferWindow : Window
         var btn = new Button
         {
             Content = "✕",
-            FontSize = 12,
+            FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Padding = new Thickness(0),
-            Width = 18,
-            Height = RowHeight - 6,
+            Width = 16,
+            Height = 18,
             Cursor = System.Windows.Input.Cursors.Hand,
             ToolTip = "Xóa dòng tiêu thụ",
             Background = Brushes.Transparent,
